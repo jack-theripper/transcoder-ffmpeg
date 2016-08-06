@@ -48,12 +48,24 @@ class Cache
 	 */
 	public static function get($index, $default = null)
 	{
-		if (array_key_exists((string) $index, self::$container))
+		if (self::has((string) $index))
 		{
 			return self::$container[(string) $index];
 		}
 
 		return $default;
 	}
-	
+
+	/**
+	 * Check exists index.
+	 *
+	 * @param $index
+	 *
+	 * @return bool
+	 */
+	public static function has($index)
+	{
+		return array_key_exists((string) $index, self::$container);
+	}
+
 }
