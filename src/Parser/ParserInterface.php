@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This file is part of the arhitector/transcoder-ffmpeg library.
  *
@@ -10,7 +11,6 @@
  * @license   http://opensource.org/licenses/MIT MIT
  * @copyright Copyright (c) 2016 Dmitry Arhitector <dmitry.arhitector@yandex.ru>
  */
-
 namespace Arhitector\Transcoder\FFMpeg\Parser;
 
 /**
