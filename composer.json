@@ -1,0 +1,21 @@
+{
+  "name": "arhitector/transcoder-ffmpeg",
+  "description": "description_text",
+  "minimum-stability": "stable",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Dmitry Arhitector",
+      "email": "dmitry.arhitector@yandex.ru"
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "Arhitector\\Transcoder\\FFMpeg\\": "src"
+    }
+  },
+  "autoload-dev": {
+    "Arhitector\\Transcoder\\FFMpeg\\Tests\\": "tests"
+  }
+
+}
