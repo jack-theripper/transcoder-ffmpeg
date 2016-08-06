@@ -31,19 +31,19 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
  */
 class Adapter implements AdapterInterface
 {
-	use DecoratorTrait, AdapterTrait;
-	
+	use DecoratorTrait, AdapterTrait, OptionsTrait;
+
 	/**
 	 * @var Executor
 	 */
 	protected $executor;
-	
+
 	/**
 	 * @var string  Full file path.
 	 */
 	protected $filePath;
-	
-	
+
+
 	/**
 	 * Adapter constructor.
 	 *
@@ -51,7 +51,7 @@ class Adapter implements AdapterInterface
 	 */
 	public function __construct(array $config = [])
 	{
-		$this->setExecutor(new Executor($this->configureOptions(new OptionsResolver, $config)));
+		$this->setExecutor(new Executor($this->configureOptions(new OptionsResolver, $config + self::$options)));
 	}
 	
 	/**
@@ -225,7 +225,7 @@ class Adapter implements AdapterInterface
 
 
 
-		
+
 
 		
 		/*if ( ! empty($this->'threads', false))
