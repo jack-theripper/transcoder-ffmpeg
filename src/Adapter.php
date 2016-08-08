@@ -23,6 +23,7 @@ use Arhitector\Transcoder\Format;
 use Arhitector\Transcoder\Format\FormatInterface;
 use Arhitector\Transcoder\MediaInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
+use Symfony\Component\Process\Process;
 
 /**
  * FFMpeg adapter.
@@ -104,31 +105,33 @@ class Adapter implements AdapterInterface
 	 *
 	 * @return array
 	 */
-	public function getSupportedCodecs($mask = null, $strict = false)
+	public function getSupportedCodecs($mask, $strict = false)
 	{
-		if ($mask === null)
+		$codecs = Cache::get('codecs', false);
+
+		if ( ! $codecs)
 		{
-			return $this->getAvailableCodecs();
+			Cache::set('codecs', $codecs = $this->getAvailableCodecs());
 		}
+
+		$matches = [];
 		
-		$codecs = [];
-		
-		foreach ((array) $this->getAvailableCodecs() as $codec => $value)
+		foreach ((array) $codecs as $codec => $value)
 		{
 			if ($strict)
 			{
 				if ($mask <= ($value & $mask))
 				{
-					$codecs[] = $codec;
+					$matches[] = $codec;
 				}
 			}
 			else if ($value & $mask)
 			{
-				$codecs[] = $codec;
+				$matches[] = $codec;
 			}
 		}
 		
-		return $codecs;
+		return $matches;
 	}
 	
 	
@@ -263,52 +266,61 @@ class Adapter implements AdapterInterface
 	 */
 	protected function getAvailableCodecs()
 	{
-		$codecs = Cache::get('codecs');
+		$codecs = [];
+		$regex = '/\s([VASFXBDEIL\.]{6})\s(\S{3,20})\s/';
+		$bit = [
+			'.' => 0,
+			'A' => MediaInterface::CODEC_AUDIO,
+			'V' => MediaInterface::CODEC_VIDEO,
+			'S' => MediaInterface::CODEC_SUBTITLE,
+			'E' => MediaInterface::CODEC_ENCODER,
+			'D' => MediaInterface::CODEC_DECODER
+		];
 
-		if (sizeof($codecs) < 1)
+		foreach ([
+			'encoders' => $this->executor->executeAsync(['-encoders']),
+			'decoders' => $this->executor->executeAsync(['-decoders']),
+			'codecs'   => $this->executor->executeAsync(['-codecs'])
+		] as $type => $process)
 		{
-			$regex = '/\s([VASFXBDEIL\.]{6})\s(\S{3,20})\s/';
-			$bit = [
-				'.' => 0,
-				'A' => MediaInterface::CODEC_AUDIO,
-				'V' => MediaInterface::CODEC_VIDEO,
-				'S' => MediaInterface::CODEC_SUBTITLE,
-				'E' => MediaInterface::CODEC_ENCODER,
-				'D' => MediaInterface::CODEC_DECODER
-			];
-
-			// encoders
-			if (preg_match_all($regex, $this->executor->execute(['-encoders'])
-				->getOutput(), $matches))
+			while ($process->getStatus() !== Process::STATUS_TERMINATED)
 			{
-				foreach ($matches[2] as $key => $value)
-				{
-					$codecs[$value] = $bit[$matches[1][$key]{0}] | 64;
-				}
+				usleep(200000);
 			}
 
-			// decoders
-			if (preg_match_all($regex, $this->executor->execute(['-decoders'])
-				->getOutput(), $matches))
+			if (preg_match_all($regex, $process->getOutput(), $matches))
 			{
-				foreach ($matches[2] as $key => $value)
+				switch ($type)
 				{
-					$codecs[$value] = $bit[$matches[1][$key]{0}] | 128;
+					case 'encoders':
+
+						foreach ($matches[2] as $key => $value)
+						{
+							$codecs[$value] = $bit[$matches[1][$key]{0}] | 64;
+						}
+
+					break;
+
+					case 'decoders':
+
+						foreach ($matches[2] as $key => $value)
+						{
+							$codecs[$value] = $bit[$matches[1][$key]{0}] | 128;
+						}
+
+					break;
+
+					case 'codecs': // codecs, encoders + decoders
+
+						foreach ($matches[2] as $key => $value)
+						{
+							$key = $matches[1][$key];
+							$codecs[$value] = $bit[$key{2}] | $bit[$key{0}] | $bit[$key{1}];
+						}
+
+					break;
 				}
 			}
-
-			// codecs, encoders + decoders
-			if (preg_match_all($regex, $this->executor->execute(['-codecs'])
-				->getOutput(), $matches))
-			{
-				foreach ($matches[2] as $key => $value)
-				{
-					$key = $matches[1][$key];
-					$codecs[$value] = $bit[$key{2}] | $bit[$key{0}] | $bit[$key{1}];
-				}
-			}
-
-			Cache::set('codecs', $codecs);
 		}
 
 		return $codecs;
@@ -389,6 +401,7 @@ class Adapter implements AdapterInterface
 			foreach ($parsed->streams ?: [] as $stream)
 			{
 				$stream->inject($this->executor);
+				$stream->setFilePath($this->getFilePath());
 			}
 			
 			$this->setFormat($parsed->format ?: new Format);
