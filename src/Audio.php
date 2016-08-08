@@ -16,7 +16,7 @@ namespace Arhitector\Transcoder\FFMpeg;
 use Arhitector\Transcoder\AudioInterface;
 
 /**
- * Class Audio.
+ * Audio wrapper.
  *
  * @package Arhitector\Transcoder\FFMpeg
  */
