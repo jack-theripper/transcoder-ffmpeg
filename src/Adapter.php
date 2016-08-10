@@ -20,8 +20,8 @@ use Arhitector\Transcoder\Exception\InvalidFilterException;
 use Arhitector\Transcoder\Filter\AdapterFilterInterface;
 use Arhitector\Transcoder\Filter\FilterInterface;
 use Arhitector\Transcoder\Format;
-use Arhitector\Transcoder\Format\FormatInterface;
 use Arhitector\Transcoder\MediaInterface;
+use Emgag\Flysystem\Tempdir;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Process\Process;
 
@@ -66,7 +66,7 @@ class Adapter implements AdapterInterface
 	{
 		$this->setFilePath($media->getFilePath());
 		$this->initialize();
-		
+
 		return $this;
 	}
 	
@@ -133,92 +133,114 @@ class Adapter implements AdapterInterface
 		
 		return $matches;
 	}
-	
-	
 
-	
-	
 	/**
 	 * Transcoding.
 	 *
-	 * @param FormatInterface $format
-	 * @param array           $options
-	 * @param string          $filePath
+	 * @param Format\FormatInterface $format
+	 * @param array                  $options
+	 * @param string                 $filePath
 	 *
 	 * @return bool
 	 * @throws \Exception
+	 *
+	 * @TODO add '-threads', and additional streams
 	 */
-	public function save(FormatInterface $format, array $options, $filePath)
+	public function save(Format\FormatInterface $format, array $options, $filePath)
 	{
 		$commands = ['-y', '-i', $this->getFilePath()];
-
-
-
+		$commands = array_merge($commands, $this->getForceFormatOptions($format));
 
 		if ($format instanceof Format\AudioFormatInterface)
 		{
-			if ($format->getAudioCodecString())
-			{
-				$commands[] = '-codec:a';
-				$commands[] = $format->getAudioCodecString();
-			}
-
-			if ($format->getAudioKiloBitRate())
-			{
-				$commands[] = '-ab';
-				$commands[] = $format->getAudioKiloBitRate().'k';
-			}
-
-			if ($format->getAudioFrequency())
-			{
-				$commands[] = '-ar';
-				$commands[] = $format->getAudioFrequency();
-			}
-
-			if ($format->getAudioChannels())
-			{
-				$commands[] = '-ac';
-				$commands[] = $format->getAudioChannels();
-			}
+			$commands = array_merge($commands, $this->getAudioFormatOptions($format));
 		}
 
 		if ($format instanceof Format\VideoFormatInterface)
 		{
-			$commands[] = '-codec:v';
-			$commands[] = $format->getVideoCodecString() ?: 'copy';
+			$commands = array_merge($commands, $this->getVideoFormatOptions($format));
 		}
 
+		if ($this->getFormat()->isModified())
+		{
+			$commands['metadata'] = $this->getFormat()->getProperties();
+			//$commands['map_metadata'] = '-1';
+		}
+
+		// @TODO add remove a key 'pass' or '-pass'
+		foreach (array_diff($options, ['-pass', 'pass']) as $property => $value)
+		{
+			if (is_integer($property))
+			{
+				$commands[] = $value;
+			}
+			else
+			{
+				$commands[ltrim($property, '-')] = $value;
+			}
+		}
+
+		$options = [];
+
+		foreach ($commands as $property => $value)
+		{
+			if ( ! is_integer($property))
+			{
+				$options[] = $property = sprintf("-%s", ltrim($property, '-'));
+
+				if (stripos($property, '-filter') !== false)
+				{
+					$items = [];
+
+					foreach ($value as $index => $item)
+					{
+						$items = array_merge($items, (array) $item);
+					}
+
+					$options[] = implode(', ', $items);
+
+					continue;
+				}
+			}
+
+			if (is_array($value))
+			{
+				array_pop($options);
+
+				foreach ($value as $index => $item)
+				{
+					$options[] = $property;
+					$options[] = $index.'='.$item;
+				}
+
+				continue;
+			}
+
+			$options[] = $value;
+		}
 
 		if ($format->getPasses() > 1)
 		{
-			$pass_log_file = __DIR__.'/'.uniqid('transcoder-pass');
-
-			$commands[] = '-passlogfile';
-			$commands[] = $pass_log_file;
+			$filesystem = new Tempdir('transcoder');
+			$options[] = '-passlogfile';
+			$options[] = $filesystem->getPath().'ffmpeg.passlog';
 		}
 
-		$forceFormat = $this->getForceFormatString($format);
-
-		if ($forceFormat)
+		for ($pass = 1; $pass <= $format->getPasses(); ++$pass)
 		{
-			$commands[] = '-f';
-			$commands[] = $forceFormat;
-		}
+			$commands = $options;
 
+			if ($format->getPasses() > 1)
+			{
+				$commands[] = '-pass';
+				$commands[] = $pass;
+			}
 
-		for ($i = 1; $i <= $format->getPasses(); ++$i)
-		{
-			$commands_pass = $commands;
-
-			$commands_pass[] = '-pass';
-			$commands_pass[] = $i;
-
-
-			$commands_pass[] = $filePath;
+			$commands[] = $filePath;
 
 			try
 			{
-				$this->executor->execute($commands_pass);
+				$this->executor->execute($commands);
 			}
 			catch (\Exception $exc)
 			{
@@ -226,48 +248,108 @@ class Adapter implements AdapterInterface
 			}
 		}
 
+		return true;
+	}
 
+	/**
+	 * Get video options.
+	 *
+	 * @param Format\VideoFormatInterface $format
+	 *
+	 * @return array
+	 */
+	protected function getVideoFormatOptions(Format\VideoFormatInterface $format)
+	{
+		$options['c:v'] = $format->getVideoCodecString() ?: 'copy';
 
-
-
-		
-		/*if ( ! empty($this->'threads', false))
+		if ($format->getVideoFrameRate() > 0)
 		{
-			$commands[] = '-threads';
-			$commands[] = $this->executor->getOption('threads');
-		}*/
-		
-		
+			$options['r'] = $format->getVideoFrameRate();
+		}
+
+		if ($format->getVideoKiloBitRate() > 0)
+		{
+			$options['b:v'] = $format->getVideoKiloBitRate().'k';
+		}
+
+		return $options;
+	}
+
+	/**
+	 * Get audio options.
+	 *
+	 * @param Format\AudioFormatInterface $format
+	 *
+	 * @return string[]
+	 */
+	protected function getAudioFormatOptions(Format\AudioFormatInterface $format)
+	{
+		$options['c:a'] = $format->getAudioCodecString() ?: 'copy';
+
+		if ($format->getAudioKiloBitRate() > 0)
+		{
+			$options['b:a'] = $format->getAudioKiloBitRate().'k';
+		}
+
+		if ($format->getAudioFrequency() > 0)
+		{
+			$options['ar'] = $format->getAudioFrequency();
+		}
+
+		if ($format->getAudioChannels())
+		{
+			$options['ac'] = $format->getAudioChannels();
+		}
+
+		$options['c:v'] = 'copy';
+
+		return $options;
 	}
 
 	/**
 	 * Get option value.
 	 *
-	 * @param FormatInterface $format
+	 * @param Format\FormatInterface $format
 	 *
-	 * @return null|string
+	 * @return string[]
 	 */
-	protected function getForceFormatString(FormatInterface $format)
+	protected function getForceFormatOptions(Format\FormatInterface $format)
 	{
-		$option = null;
+		$alias = [
+			'ThreeGP' => '3gp',
+			'Aac'     => 'aac',
+			'Wmv'     => 'asf',
+			'Flac'    => 'flac',
+			'Flv'     => 'flv',
+			'Gif'     => 'gif',
+			'H264'    => 'h264',
+			'Mp4'     => 'mp4',
+			'Jpeg'    => 'image2',
+			'WebM'    => 'webm',
+			'Oga'     => 'oga',
+			'Ogg'     => 'ogg',
+			'mp3'     => 'mpeg',
+			'Wav'     => 'wav'
+		];
 
-		if ($format instanceof Format\Wmv)
+		$class_name = basename(get_class($format));
+
+		if (isset($alias[$class_name]))
 		{
-			$option = 'asf';
+			return ['f' => $alias[$class_name]];
 		}
 
-		return $option;
+		return [];
 	}
 
 	/**
 	 * FFMpeg codecs.
 	 *
-	 * @return array
+	 * @return int[]
 	 */
 	protected function getAvailableCodecs()
 	{
 		$codecs = [];
-		$regex = '/\s([VASFXBDEIL\.]{6})\s(\S{3,20})\s/';
 		$bit = [
 			'.' => 0,
 			'A' => MediaInterface::CODEC_AUDIO,
@@ -288,7 +370,7 @@ class Adapter implements AdapterInterface
 				usleep(200000);
 			}
 
-			if (preg_match_all($regex, $process->getOutput(), $matches))
+			if (preg_match_all('/\s([VASFXBDEIL\.]{6})\s(\S{3,20})\s/', $process->getOutput(), $matches))
 			{
 				switch ($type)
 				{
@@ -296,7 +378,7 @@ class Adapter implements AdapterInterface
 
 						foreach ($matches[2] as $key => $value)
 						{
-							$codecs[$value] = $bit[$matches[1][$key]{0}] | 64;
+							$codecs[$value] = $bit[$matches[1][$key]{0}] | $bit['E'];
 						}
 
 					break;
@@ -305,7 +387,7 @@ class Adapter implements AdapterInterface
 
 						foreach ($matches[2] as $key => $value)
 						{
-							$codecs[$value] = $bit[$matches[1][$key]{0}] | 128;
+							$codecs[$value] = $bit[$matches[1][$key]{0}] | $bit['D'];
 						}
 
 					break;
@@ -331,7 +413,7 @@ class Adapter implements AdapterInterface
 	 *
 	 * @param string $filePath
 	 *
-	 * @return $this
+	 * @return Adapter
 	 */
 	protected function setFilePath($filePath)
 	{
