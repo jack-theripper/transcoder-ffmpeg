@@ -202,7 +202,7 @@ class Adapter implements AdapterInterface
 	}
 	
 	/**
-	 * FFMpeg codecs.
+	 * Supported codecs.
 	 *
 	 * @return int[]
 	 */
@@ -217,7 +217,7 @@ class Adapter implements AdapterInterface
 			'E' => TranscoderInterface::CODEC_ENCODER,
 			'D' => TranscoderInterface::CODEC_DECODER
 		];
-
+		
 		foreach ([
 			'encoders' => $this->executor->executeAsync(['-encoders']),
 			'decoders' => $this->executor->executeAsync(['-decoders']),
@@ -228,107 +228,39 @@ class Adapter implements AdapterInterface
 			{
 				usleep(200000);
 			}
-
+			
 			if (preg_match_all('/\s([VASFXBDEIL\.]{6})\s(\S{3,20})\s/', $process->getOutput(), $matches))
 			{
-				switch ($type)
+				if ($type == 'encoders')
 				{
-					case 'encoders':
-
-						foreach ($matches[2] as $key => $value)
-						{
-							$codecs[$value] = $bit[$matches[1][$key]{0}] | $bit['E'];
-						}
-
-					break;
-
-					case 'decoders':
-
-						foreach ($matches[2] as $key => $value)
-						{
-							$codecs[$value] = $bit[$matches[1][$key]{0}] | $bit['D'];
-						}
-
-					break;
-
-					case 'codecs': // codecs, encoders + decoders
-
-						foreach ($matches[2] as $key => $value)
-						{
-							$key = $matches[1][$key];
-							$codecs[$value] = $bit[$key{2}] | $bit[$key{0}] | $bit[$key{1}];
-						}
-
-					break;
+					foreach ($matches[2] as $key => $value)
+					{
+						$codecs[$value] = $bit[$matches[1][$key]{0}] | $bit['E'];
+					}
+				}
+				else if ($type == 'decoders')
+				{
+					foreach ($matches[2] as $key => $value)
+					{
+						$codecs[$value] = $bit[$matches[1][$key]{0}] | $bit['D'];
+					}
+				}
+				else // codecs, encoders + decoders
+				{
+					foreach ($matches[2] as $key => $value)
+					{
+						$key = $matches[1][$key];
+						$codecs[$value] = $bit[$key{2}] | $bit[$key{0}] | $bit[$key{1}];
+					}
 				}
 			}
 		}
-
+		
 		return $codecs;
 	}
 	
 	/**
-	 * Set file path.
-	 *
-	 * @param string $filePath
-	 *
-	 * @return Adapter
-	 */
-	protected function setFilePath($filePath)
-	{
-		if ( ! is_string($filePath))
-		{
-			throw new \InvalidArgumentException('File path must be a string type.');
-		}
-		
-		$filePath = realpath($filePath);
-		
-		if ( ! is_file($filePath))
-		{
-			throw new \RuntimeException('File path not found.');
-		}
-		
-		$this->filePath = $filePath;
-		
-		return $this;
-	}
-	
-	/**
-	 * Configure options.
-	 *
-	 * @param OptionsResolver $resolver
-	 * @param array           $options
-	 *
-	 * @return array
-	 */
-	protected function configureOptions(OptionsResolver $resolver, array $options)
-	{
-		$options = $resolver->setDefaults([
-			'ffmpeg.path'    => 'ffmpeg',
-			'ffmpeg.threads' => null,
-			'ffprobe.path'   => 'ffprobe',
-			'timeout'        => 0
-		])
-			->resolve($options);
-		
-		return $this->hasExecutable([
-			'ffmpeg.path'  => $options['ffmpeg.path'],
-			'ffprobe.path' => $options['ffprobe.path']
-		]) + $options;
-	}
-	
-	/**
-	 * Get full file path.
-	 *
-	 * @return  string
-	 */
-	protected function getFilePath()
-	{
-		return $this->filePath;
-	}
-	
-	/**
-	 * Set instance executor.
+	 * Set Executor instance.
 	 *
 	 * @param Executor $instance
 	 *
