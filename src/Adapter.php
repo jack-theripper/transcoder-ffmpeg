@@ -198,7 +198,146 @@ class Adapter implements AdapterInterface
 	 */
 	public function transcode(TranscoderInterface $media, FormatInterface $format, \SplPriorityQueue $filters)
 	{
+		$options_ = new Options(['y', 'i' => [$media->getFilePath()], 'strict' => '-2']);
+		$options_->merge($this->getFormatOptions($format));
+		$options_->merge($this->getForceFormatOptions($format));
 		
+		foreach ($filters as $filter)
+		{
+			$options_->replace($filter->apply($media, $format));
+		}
+		
+		if ( ! isset($options_['output']))
+		{
+			throw new \RuntimeException('Output file path not found.');
+		}
+		
+		$filePath = $options_['output'];
+		$options_->replace($this->getStreamOptions($this->getStreams(), $options_));
+		$options = $options_->withoutTranscoderOptions();
+		
+		foreach ([
+			'disable_audio'          => '-an',
+			'audio_quality'          => '-qscale:a',
+			'audio_codec'            => '-codec:a',
+			'audio_bitrate'          => '-b:a',
+			'audio_sample_frequency' => '-ar',
+			'audio_channels'         => '-ac',
+			'disable_video'          => '-vn',
+			'video_quality'          => '-qscale:v',
+			'video_codec'            => '-codec:v',
+			'video_aspect_ratio'     => '-aspect',
+			'video_frame_rate'       => '-r',
+			'video_max_frames'       => '-vframes',
+			'video_bitrate'          => '-b:v',
+			'video_pixel_format'     => '-pix_fmt',
+			'metadata'               => '-metadata',
+			'ffmpeg_force_format'    => '-f',
+			'ffmpeg_video_filters'   => (sizeof($options_['i']) > 1 ? '-filter_complex:v' : '-filter:v'),
+			'ffmpeg_audio_filters'   => (sizeof($options_['i']) > 1 ? '-filter_complex:a' : '-filter:a')
+		] as $option => $value)
+		{
+			if (isset($options_[$option]))
+			{
+				$options[$value] = $options_[$option];
+				
+				if (is_bool($options_[$option]))
+				{
+					$options[$value] = '';
+				}
+			}
+		}
+		
+		unset($options['ffmpeg_force_format'], $options['ffmpeg_video_filters'], $options['ffmpeg_audio_filters']);
+		
+		if ( ! empty($options['metadata']))
+		{
+			$options['map_metadata'] = '-1';
+		}
+		
+		$options_ = [];
+		
+		foreach ($options as $option => $value)
+		{
+			$options_[] = '-'.$option;
+			
+			if (stripos($option, 'filter') !== false)
+			{
+				$options_[] = implode(', ', (array) $value);
+			}
+			else if (is_array($value))
+			{
+				array_pop($options_);
+				
+				foreach ($value as $key => $val)
+				{
+					$options_[] = '-'.$option;
+					$options_[] = is_integer($key) ? $val : "{$key}={$val}";
+				}
+				
+			}
+			else if ($value)
+			{
+				$options_[] = $value;
+			}
+		}
+		
+		if ($format->getPasses() > 1)
+		{
+			$filesystem = new TemporaryPath('transcoder');
+			$options_[] = '-passlogfile';
+			$options_[] = $filesystem->getPath().'ffmpeg.passlog';
+		}
+		
+		$totalDuration = $this->getFormat()
+			->getDuration();
+		
+		if (isset($options['t']))
+		{
+			$totalDuration = $options['t'];
+			
+			if ( ! is_numeric($totalDuration))
+			{
+				$matches = array_reverse(explode(":", $totalDuration));
+				$totalDuration = (float) array_shift($matches);
+				
+				foreach ($matches as $key => $value)
+				{
+					$totalDuration += (int) $value * 60 * ($key + 1);
+				}
+			}
+		}
+		
+		for ($pass = 1; $pass <= $format->getPasses(); ++$pass)
+		{
+			$options = $options_;
+			
+			if ($format->getPasses() > 1)
+			{
+				$options[] = '-pass';
+				$options[] = $pass;
+			}
+			
+			$options[] = $filePath;
+			$process = $this->executor->executeAsync($options);
+			$process->wait(function ($type, $data) use ($process, $format, $totalDuration, $pass) {
+				if (preg_match('/size=(.*?) time=(.*?) /', $data, $matches))
+				{
+					$matches[2] = array_reverse(explode(":", $matches[2]));
+					$duration = (float) array_shift($matches[2]);
+					
+					foreach ($matches[2] as $key => $value)
+					{
+						$duration += (int) $value * 60 * ($key + 1);
+					}
+					
+					$format->emit('progress', $process, $totalDuration, $duration, (int) trim($matches[1]),
+						$format->getPasses(), $pass);
+				}
+			});
+			
+			yield $process;
+		}
 	}
 	
 	/**
