@@ -14,22 +14,22 @@
 namespace Arhitector\Transcoder\FFMpeg;
 
 use Arhitector\Transcoder\Exception\ExecutionFailureException;
+use Arhitector\Transcoder\FFMpeg\Parser\FFMpeg;
 use Arhitector\Transcoder\FFMpeg\Parser\FFProbe;
 use Arhitector\Transcoder\FFMpeg\Parser\ParserInterface;
-use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Process\Process;
 use Symfony\Component\Process\ProcessBuilder;
 
 /**
- * Class Executor.
+ * Class Executor
  *
  * @package Arhitector\Transcoder\FFMpeg
  */
 class Executor
 {
-
+	
 	/**
-	 * @var OptionsResolver Configurations.
+	 * @var array Configurations.
 	 */
 	protected $options;
 	
@@ -37,8 +37,7 @@ class Executor
 	 * @var ParserInterface Parser.
 	 */
 	protected $parser;
-
-
+	
 	/**
 	 * Executor constructor.
 	 *
@@ -47,9 +46,17 @@ class Executor
 	public function __construct(array $options = [])
 	{
 		$this->setOptions($options);
-		$this->setParser(new FFProbe);
+		
+		if ( ! empty($options['ffprobe.path']))
+		{
+			$this->setParser(new FFProbe($options['ffprobe.path']));
+		}
+		else
+		{
+			$this->setParser(new FFMpeg($options['ffmpeg.path']));
+		}
 	}
-
+	
 	/**
 	 * Get parsed data from file.
 	 *
@@ -60,68 +67,84 @@ class Executor
 	 */
 	public function parse($filePath)
 	{
-		$parsed = $this->parser->parse($this->parser->read($filePath));
-
+		$parsed = $this->parser->parse($filePath);
+		
 		if (isset($parsed->error))
 		{
-			throw new \InvalidArgumentException($parsed->error);
+			throw new \RuntimeException($parsed->error);
 		}
-
+		
 		return $parsed;
 	}
-
+	
 	/**
 	 * Execute ffmpeg command.
 	 *
-	 * @param $command
+	 * @param array    $options
+	 * @param callable $callback
 	 *
 	 * @return Process
-	 * @throws ExecutionFailureException
 	 */
-	public function execute($command)
+	public function execute($options, callable $callback = null)
 	{
-		if (is_array($command))
-		{
-			$command = new ProcessBuilder($command);
-		}
-
-		$process = $command->setPrefix($this->options['ffmpeg.path'])
-			->setTimeout(0)
-			->getProcess();
-
+		$this->executeAsync($options)
+			->wait($callback);
+	}
+	
+	/**
+	 * Run command line.
+	 *
+	 * @param array    $options
+	 * @param callable $callback
+	 *
+	 * @return Process
+	 */
+	public function executeAsync($options, callable $callback = null)
+	{
+		$process = $this->getCommandProcess($options);
+		
 		try
 		{
-			//echo $process->getCommandLine();
-
-			$process->mustRun(function ($type, $buffer) {
-
-
-
-			});
+			$process->start($callback);
 		}
 		catch (\Exception $exc)
 		{
 			throw new ExecutionFailureException($exc->getMessage(), $process, $exc->getCode(), $exc);
 		}
-
+		
 		return $process;
 	}
-
+	
+	/**
+	 * Process builder.
+	 *
+	 * @param array $options
+	 *
+	 * @return Process
+	 */
+	protected function getCommandProcess($options)
+	{
+		$builder = new ProcessBuilder($options);
+		$builder->setPrefix($this->options['ffmpeg.path'])
+			->setTimeout($this->options['timeout']);
+		
+		return $builder->getProcess();
+	}
+	
 	/**
 	 * Set parser
 	 *
 	 * @param ParserInterface $parser
 	 *
-	 * @return Adapter
+	 * @return Executor
 	 */
 	protected function setParser(ParserInterface $parser)
 	{
 		$this->parser = $parser;
-		$this->parser->setBinaryPath($this->options['ffprobe.path']);
-
+		
 		return $this;
 	}
-
+	
 	/**
 	 * Replace options.
 	 *
@@ -132,8 +155,8 @@ class Executor
 	protected function setOptions(array $options)
 	{
 		$this->options = $options;
-
+		
 		return $this;
 	}
-
+	
 }
