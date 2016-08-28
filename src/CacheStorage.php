@@ -18,54 +18,65 @@ namespace Arhitector\Transcoder\FFMpeg;
  *
  * @package Arhitector\Transcoder\FFMpeg
  */
-class Cache
+class CacheStorage
 {
-
+	
 	/**
 	 * @var array Container.
 	 */
 	protected static $container = [];
-
-
+	
 	/**
 	 * Sets the values.
 	 *
-	 * @param string $index
+	 * @param string $keyContainer
 	 * @param mixed  $value
+	 *
+	 * @return mixed
 	 */
-	public static function set($index, $value)
+	public static function set($keyContainer, $value)
 	{
-		self::$container[(string) $index] = $value;
+		if ( ! is_string($keyContainer) || empty($keyContainer))
+		{
+			throw new \InvalidArgumentException('The keyContainer value must be a string type.');
+		}
+		
+		return self::$container[$keyContainer] = $value;
 	}
-
+	
 	/**
 	 * Get values.
 	 *
-	 * @param string $index
+	 * @param string $keyContainer
 	 * @param mixed  $default
 	 *
 	 * @return mixed
 	 */
-	public static function get($index, $default = null)
+	public static function get($keyContainer, $default = null)
 	{
-		if (self::has((string) $index))
+		if (self::has($keyContainer))
 		{
-			return self::$container[(string) $index];
+			return self::$container[$keyContainer];
 		}
-
+		
 		return $default;
 	}
-
+	
 	/**
 	 * Check exists index.
 	 *
-	 * @param $index
+	 * @param string $keyContainer
 	 *
 	 * @return bool
 	 */
-	public static function has($index)
+	public static function has($keyContainer)
 	{
-		return array_key_exists((string) $index, self::$container);
+		if ( ! is_string($keyContainer) || empty($keyContainer))
+		{
+			throw new \InvalidArgumentException('The keyContainer value must be a string type.');
+		}
+		
+		return array_key_exists($keyContainer, self::$container);
 	}
-
+	
 }
