@@ -15,54 +15,80 @@ namespace Arhitector\Transcoder\FFMpeg;
 
 use Arhitector\Transcoder\AdapterInterface;
 use Arhitector\Transcoder\AdapterTrait;
-use Arhitector\Transcoder\DecoratorTrait;
-use Arhitector\Transcoder\Exception\InvalidFilterException;
-use Arhitector\Transcoder\Filter\AdapterFilterInterface;
+use Arhitector\Transcoder\AudioInterface;
+use Arhitector\Transcoder\Exception\ExecutableNotFoundException;
 use Arhitector\Transcoder\Filter\FilterInterface;
-use Arhitector\Transcoder\Format;
-use Arhitector\Transcoder\MediaInterface;
-use Emgag\Flysystem\Tempdir;
-use Symfony\Component\OptionsResolver\OptionsResolver;
+use Arhitector\Transcoder\Filter\HandlerFilterInterface;
+use Arhitector\Transcoder\Format\FormatInterface;
+use Arhitector\Transcoder\Format\SimpleAudio;
+use Arhitector\Transcoder\Format\SimpleSubtitle;
+use Arhitector\Transcoder\Format\SimpleVideo;
+use Arhitector\Transcoder\SubtitleInterface;
+use Arhitector\Transcoder\Tools\Options;
+use Arhitector\Transcoder\Tools\TemporaryPath;
+use Arhitector\Transcoder\TranscoderInterface;
+use Arhitector\Transcoder\VideoInterface;
 use Symfony\Component\Process\Process;
 
 /**
- * FFMpeg adapter.
+ * Class Adapter.
  *
  * @package Arhitector\Transcoder\FFMpeg
  */
 class Adapter implements AdapterInterface
 {
-	use DecoratorTrait, AdapterTrait, OptionsTrait;
-
+	use AdapterTrait, CommandOptionsTrait;
+	
 	/**
 	 * @var Executor
 	 */
 	protected $executor;
-
-	/**
-	 * @var string  Full file path.
-	 */
-	protected $filePath;
-
-
+	
 	/**
 	 * Adapter constructor.
 	 *
-	 * @param array $config
+	 * @param array $options
 	 */
-	public function __construct(array $config = [])
+	public function __construct(array $options = [])
 	{
-		$this->setExecutor(new Executor($this->configureOptions(new OptionsResolver, $config + self::$options)));
+		$options = array_merge([
+			'ffmpeg.path'    => 'ffmpeg',
+			'ffmpeg.threads' => null,
+			'ffprobe.path'   => 'ffprobe',
+			'timeout'        => 0
+		], $options);
+		
+		foreach ([
+			'ffmpeg.path'  => $options['ffmpeg.path'],
+			'ffprobe.path' => $options['ffprobe.path']
+		] as $option => $binary)
+		{
+			try
+			{
+				$options[$option] = $this->hasFindExecutable($binary);
+			}
+			catch (ExecutableNotFoundException $exc)
+			{
+				if ($option != 'ffprobe.path')
+				{
+					throw $exc;
+				}
+				
+				$options[$option] = null; // ffprobe not installed
+			}
+		}
+		
+		$this->setExecutor(new Executor($options));
 	}
 	
 	/**
 	 * Sets Media file instance.
 	 *
-	 * @param MediaInterface $media
+	 * @param TranscoderInterface $media
 	 *
 	 * @return Adapter
 	 */
-	public function inject(MediaInterface $media)
+	public function inject(TranscoderInterface $media)
 	{
 		$this->setFilePath($media->getFilePath());
 		$this->initialize();
@@ -148,8 +174,7 @@ class Adapter implements AdapterInterface
 	 */
 	public function save(Format\FormatInterface $format, array $options, $filePath)
 	{
-		$commands = ['-y', '-i', $this->getFilePath()];
-		$commands = array_merge($commands, $this->getForceFormatOptions($format));
+		$commands = array_merge(['y' => '', 'i' => [$this->getFilePath()]], $this->getForceFormatOption($format));
 
 		if ($format instanceof Format\AudioFormatInterface)
 		{
@@ -160,63 +185,60 @@ class Adapter implements AdapterInterface
 		{
 			$commands = array_merge($commands, $this->getVideoFormatOptions($format));
 		}
-
+		
 		if ($this->getFormat()->isModified())
 		{
-			$commands['metadata'] = $this->getFormat()->getProperties();
-			//$commands['map_metadata'] = '-1';
+			$commands['map_metadata'] = '-1';
+			$commands['metadata'] = $this->getFormat()
+				->getProperties();
 		}
 
-		// @TODO add remove a key 'pass' or '-pass'
-		foreach (array_diff($options, ['-pass', 'pass']) as $property => $value)
+		$unifyOptions = [];
+
+		foreach ($options as $property => $value)
 		{
 			if (is_integer($property))
 			{
-				$commands[] = $value;
+				$unifyOptions[$value] = '';
+
+				continue;
 			}
-			else
-			{
-				$commands[ltrim($property, '-')] = $value;
-			}
+			
+			$unifyOptions[$property] = $value;
 		}
+
+		unset($unifyOptions['pass'], $unifyOptions['passlogfile'], $unifyOptions['-pass']);
 
 		$options = [];
 
-		foreach ($commands as $property => $value)
+		foreach (array_replace_recursive($commands, $unifyOptions) as $property => $value)
 		{
-			if ( ! is_integer($property))
+			$options[] = "-{$property}";
+
+			if (stripos($property, 'filter') !== false)
 			{
-				$options[] = $property = sprintf("-%s", ltrim($property, '-'));
-
-				if (stripos($property, '-filter') !== false)
-				{
-					$items = [];
-
-					foreach ($value as $index => $item)
-					{
-						$items = array_merge($items, (array) $item);
-					}
-
-					$options[] = implode(', ', $items);
-
-					continue;
-				}
+				$options[] = implode(', ', $value);
 			}
-
-			if (is_array($value))
+			else if (is_array($value))
 			{
 				array_pop($options);
 
 				foreach ($value as $index => $item)
 				{
-					$options[] = $property;
-					$options[] = $index.'='.$item;
+					$options[] = "-{$property}";
+
+					if ( ! is_integer($index))
+					{
+						$item = $index.' = '.$item;
+					}
+
+					$options[] = $item;
 				}
-
-				continue;
 			}
-
-			$options[] = $value;
+			else if ($value != '')
+			{
+				$options[] = $value;
+			}
 		}
 
 		if ($format->getPasses() > 1)
@@ -237,110 +259,25 @@ class Adapter implements AdapterInterface
 			}
 
 			$commands[] = $filePath;
-
-			try
-			{
-				$this->executor->execute($commands);
-			}
-			catch (\Exception $exc)
-			{
-				throw $exc;
-			}
+			$process = $this->executor->executeAsync($commands);
+			$process->wait(function ($type, $data) use ($format, $pass) {
+				if (preg_match('/frame=(.+)fps=(.+)q.+size=(.+)time=([\d\:\.]+)\s/i', $data, $matches))
+				{
+					$format->emit('progress', [
+						'pass' => $pass,
+						'duration' => $this->getFormat()->getDuration(),
+						'fps' => (float) trim($matches[2]),
+						'frame' => (int) trim($matches[1]),
+						'remaining' => '',//gmdate('H:i:s.u', trim($matches[4])),
+						'size' => (int) trim($matches[3])
+					]);
+				}
+			});
 		}
-
+		
 		return true;
 	}
 
-	/**
-	 * Get video options.
-	 *
-	 * @param Format\VideoFormatInterface $format
-	 *
-	 * @return array
-	 */
-	protected function getVideoFormatOptions(Format\VideoFormatInterface $format)
-	{
-		$options['c:v'] = $format->getVideoCodecString() ?: 'copy';
-
-		if ($format->getVideoFrameRate() > 0)
-		{
-			$options['r'] = $format->getVideoFrameRate();
-		}
-
-		if ($format->getVideoKiloBitRate() > 0)
-		{
-			$options['b:v'] = $format->getVideoKiloBitRate().'k';
-		}
-
-		return $options;
-	}
-
-	/**
-	 * Get audio options.
-	 *
-	 * @param Format\AudioFormatInterface $format
-	 *
-	 * @return string[]
-	 */
-	protected function getAudioFormatOptions(Format\AudioFormatInterface $format)
-	{
-		$options['c:a'] = $format->getAudioCodecString() ?: 'copy';
-
-		if ($format->getAudioKiloBitRate() > 0)
-		{
-			$options['b:a'] = $format->getAudioKiloBitRate().'k';
-		}
-
-		if ($format->getAudioFrequency() > 0)
-		{
-			$options['ar'] = $format->getAudioFrequency();
-		}
-
-		if ($format->getAudioChannels())
-		{
-			$options['ac'] = $format->getAudioChannels();
-		}
-
-		$options['c:v'] = 'copy';
-
-		return $options;
-	}
-
-	/**
-	 * Get option value.
-	 *
-	 * @param Format\FormatInterface $format
-	 *
-	 * @return string[]
-	 */
-	protected function getForceFormatOptions(Format\FormatInterface $format)
-	{
-		$alias = [
-			'ThreeGP' => '3gp',
-			'Aac'     => 'aac',
-			'Wmv'     => 'asf',
-			'Flac'    => 'flac',
-			'Flv'     => 'flv',
-			'Gif'     => 'gif',
-			'H264'    => 'h264',
-			'Mp4'     => 'mp4',
-			'Jpeg'    => 'image2',
-			'WebM'    => 'webm',
-			'Oga'     => 'oga',
-			'Ogg'     => 'ogg',
-			'mp3'     => 'mpeg',
-			'Wav'     => 'wav'
-		];
-
-		$class_name = basename(get_class($format));
-
-		if (isset($alias[$class_name]))
-		{
-			return ['f' => $alias[$class_name]];
-		}
-
-		return [];
-	}
 
 	/**
 	 * FFMpeg codecs.
@@ -352,11 +289,11 @@ class Adapter implements AdapterInterface
 		$codecs = [];
 		$bit = [
 			'.' => 0,
-			'A' => MediaInterface::CODEC_AUDIO,
-			'V' => MediaInterface::CODEC_VIDEO,
-			'S' => MediaInterface::CODEC_SUBTITLE,
-			'E' => MediaInterface::CODEC_ENCODER,
-			'D' => MediaInterface::CODEC_DECODER
+			'A' => TranscoderInterface::CODEC_AUDIO,
+			'V' => TranscoderInterface::CODEC_VIDEO,
+			'S' => TranscoderInterface::CODEC_SUBTITLE,
+			'E' => TranscoderInterface::CODEC_ENCODER,
+			'D' => TranscoderInterface::CODEC_DECODER
 		];
 
 		foreach ([
@@ -488,6 +425,8 @@ class Adapter implements AdapterInterface
 			
 			$this->setFormat($parsed->format ?: new Format);
 			$this->setStreams(\SplFixedArray::fromArray($parsed->streams ?: []));
+
+			//	$this->streamsHash = (new Hash())->getHash($this->getStreams());
 		}
 		catch (\Exception $exc)
 		{
