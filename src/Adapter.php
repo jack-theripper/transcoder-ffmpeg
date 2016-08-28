@@ -82,45 +82,28 @@ class Adapter implements AdapterInterface
 	}
 	
 	/**
-	 * Sets Media file instance.
-	 *
-	 * @param TranscoderInterface $media
-	 *
-	 * @return Adapter
-	 */
-	public function inject(TranscoderInterface $media)
-	{
-		$this->setFilePath($media->getFilePath());
-		$this->initialize();
-
-		return $this;
-	}
-	
-	/**
 	 * Check filter.
 	 *
 	 * @param FilterInterface $filter
 	 *
-	 * @return FilterInterface
-	 * @throws InvalidFilterException
+	 * @return bool
 	 */
 	public function hasSupportedFilter(FilterInterface $filter)
 	{
-		$filterAdapter = get_class($filter);
-
-		if (is_subclass_of($filterAdapter, AdapterFilterInterface::class))
+		if ( ! $filter instanceof HandlerFilterInterface)
 		{
-			return $filter;
+			$observer = get_class($filter);
+			$observer = __NAMESPACE__.'\\Filter\\'.substr($observer, strrpos($observer, '\\') + 1);
+			
+			if ( ! class_exists($observer))
+			{
+				return false;
+			}
+			
+			$filter->attach(new $observer($filter));
 		}
-
-		$filterAdapter = __NAMESPACE__.'\\Filter\\'.substr($filterAdapter, strrpos($filterAdapter, '\\') + 1);
-
-		if ( ! class_exists($filterAdapter))
-		{
-			throw new InvalidFilterException('The FFMpeg adapter does not support the filter.');
-		}
-
-		return $filter->inject(new $filterAdapter);
+		
+		return true;
 	}
 	
 	/**
@@ -133,152 +116,91 @@ class Adapter implements AdapterInterface
 	 */
 	public function getSupportedCodecs($mask, $strict = false)
 	{
-		$codecs = Cache::get('codecs', false);
-
-		if ( ! $codecs)
-		{
-			Cache::set('codecs', $codecs = $this->getAvailableCodecs());
-		}
-
-		$matches = [];
-		
-		foreach ((array) $codecs as $codec => $value)
-		{
-			if ($strict)
-			{
-				if ($mask <= ($value & $mask))
-				{
-					$matches[] = $codec;
-				}
-			}
-			else if ($value & $mask)
-			{
-				$matches[] = $codec;
-			}
-		}
-		
-		return $matches;
+		// TODO: Implement getSupportedCodecs() method.
 	}
-
+	
+	/**
+	 * Supported encoder etc.
+	 *
+	 * @param string $codecString
+	 *
+	 * @return int  bit mask or FALSE
+	 */
+	public function hasSupportedCodec($codecString)
+	{
+		return true;
+	}
+	
+	/**
+	 * The adapter initialize.
+	 *
+	 * @param TranscoderInterface $media
+	 *
+	 * @return void
+	 */
+	public function initialize(TranscoderInterface $media)
+	{
+		$parsed = $this->executor->parse($media->getFilePath());
+		
+		if ( ! isset($parsed['format']))
+		{
+			if ($media instanceof AudioInterface)
+			{
+				$this->setFormat(new SimpleAudio());
+			}
+			else if ($media instanceof VideoInterface)
+			{
+				$this->setFormat(new SimpleVideo());
+			}
+			else if ($media instanceof SubtitleInterface)
+			{
+				$this->setFormat(new SimpleSubtitle());
+			}
+			else
+			{
+				throw new \RuntimeException('The format not found.');
+			}
+		}
+		else
+		{
+			$this->setFormat($parsed['format']);
+		}
+		
+		if (isset($parsed['properties']))
+		{
+			foreach ($parsed['properties'] as $property => $value)
+			{
+				$media[$property] = $value;
+			}
+		}
+		
+		if ( ! isset($parsed['streams']))
+		{
+			$parsed['streams'];
+		}
+		
+		foreach ($parsed['streams'] as $stream)
+		{
+			$stream->injectExecutor($this->executor);
+		}
+		
+		$this->setStreams(\SplFixedArray::fromArray($parsed['streams']));
+	}
+	
 	/**
 	 * Transcoding.
 	 *
-	 * @param Format\FormatInterface $format
-	 * @param array                  $options
-	 * @param string                 $filePath
+	 * @param TranscoderInterface $media
+	 * @param FormatInterface     $format
+	 * @param \SplPriorityQueue   $filters
 	 *
-	 * @return bool
-	 * @throws \Exception
-	 *
-	 * @TODO add '-threads', and additional streams
+	 * @return \Iterator|Process[]
 	 */
-	public function save(Format\FormatInterface $format, array $options, $filePath)
+	public function transcode(TranscoderInterface $media, FormatInterface $format, \SplPriorityQueue $filters)
 	{
-		$commands = array_merge(['y' => '', 'i' => [$this->getFilePath()]], $this->getForceFormatOption($format));
-
-		if ($format instanceof Format\AudioFormatInterface)
-		{
-			$commands = array_merge($commands, $this->getAudioFormatOptions($format));
-		}
-
-		if ($format instanceof Format\VideoFormatInterface)
-		{
-			$commands = array_merge($commands, $this->getVideoFormatOptions($format));
-		}
 		
-		if ($this->getFormat()->isModified())
-		{
-			$commands['map_metadata'] = '-1';
-			$commands['metadata'] = $this->getFormat()
-				->getProperties();
-		}
-
-		$unifyOptions = [];
-
-		foreach ($options as $property => $value)
-		{
-			if (is_integer($property))
-			{
-				$unifyOptions[$value] = '';
-
-				continue;
-			}
-			
-			$unifyOptions[$property] = $value;
-		}
-
-		unset($unifyOptions['pass'], $unifyOptions['passlogfile'], $unifyOptions['-pass']);
-
-		$options = [];
-
-		foreach (array_replace_recursive($commands, $unifyOptions) as $property => $value)
-		{
-			$options[] = "-{$property}";
-
-			if (stripos($property, 'filter') !== false)
-			{
-				$options[] = implode(', ', $value);
-			}
-			else if (is_array($value))
-			{
-				array_pop($options);
-
-				foreach ($value as $index => $item)
-				{
-					$options[] = "-{$property}";
-
-					if ( ! is_integer($index))
-					{
-						$item = $index.' = '.$item;
-					}
-
-					$options[] = $item;
-				}
-			}
-			else if ($value != '')
-			{
-				$options[] = $value;
-			}
-		}
-
-		if ($format->getPasses() > 1)
-		{
-			$filesystem = new Tempdir('transcoder');
-			$options[] = '-passlogfile';
-			$options[] = $filesystem->getPath().'ffmpeg.passlog';
-		}
-
-		for ($pass = 1; $pass <= $format->getPasses(); ++$pass)
-		{
-			$commands = $options;
-
-			if ($format->getPasses() > 1)
-			{
-				$commands[] = '-pass';
-				$commands[] = $pass;
-			}
-
-			$commands[] = $filePath;
-			$process = $this->executor->executeAsync($commands);
-			$process->wait(function ($type, $data) use ($format, $pass) {
-				if (preg_match('/frame=(.+)fps=(.+)q.+size=(.+)time=([\d\:\.]+)\s/i', $data, $matches))
-				{
-					$format->emit('progress', [
-						'pass' => $pass,
-						'duration' => $this->getFormat()->getDuration(),
-						'fps' => (float) trim($matches[2]),
-						'frame' => (int) trim($matches[1]),
-						'remaining' => '',//gmdate('H:i:s.u', trim($matches[4])),
-						'size' => (int) trim($matches[3])
-					]);
-				}
-			});
-		}
-		
-		return true;
 	}
-
-
+	
 	/**
 	 * FFMpeg codecs.
 	 *
@@ -403,37 +325,6 @@ class Adapter implements AdapterInterface
 	protected function getFilePath()
 	{
 		return $this->filePath;
-	}
-	
-	/**
-	 * Initialize.
-	 *
-	 * @return bool
-	 * @throws \Exception
-	 */
-	protected function initialize()
-	{
-		try
-		{
-			$parsed = $this->executor->parse($this->getFilePath());
-			
-			foreach ($parsed->streams ?: [] as $stream)
-			{
-				$stream->inject($this->executor);
-				$stream->setFilePath($this->getFilePath());
-			}
-			
-			$this->setFormat($parsed->format ?: new Format);
-			$this->setStreams(\SplFixedArray::fromArray($parsed->streams ?: []));
-
-			//	$this->streamsHash = (new Hash())->getHash($this->getStreams());
-		}
-		catch (\Exception $exc)
-		{
-			throw $exc;
-		}
-		
-		return true;
 	}
 	
 	/**
