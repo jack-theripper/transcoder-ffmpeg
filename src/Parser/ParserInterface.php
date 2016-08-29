@@ -22,30 +22,19 @@ interface ParserInterface
 {
 	
 	/**
-	 * Receive raw data.
+	 * Receive and parse raw data.
 	 *
 	 * @param string $filePath
 	 *
+	 * @return array    streams, format and etc.
+	 */
+	public function parse($filePath);
+	
+	/**
+	 * Get binary path.
+	 *
 	 * @return string
 	 */
-	public function read($filePath);
-	
-	/**
-	 * Parse raw data.
-	 *
-	 * @param string $output
-	 *
-	 * @return \stdClass    streams, format and etc.
-	 */
-	public function parse($output);
-	
-	/**
-	 * Set path.
-	 *
-	 * @param string $path
-	 *
-	 * @return ParserInterface
-	 */
-	public function setBinaryPath($path);
+	public function getBinaryPath();
 	
 }
