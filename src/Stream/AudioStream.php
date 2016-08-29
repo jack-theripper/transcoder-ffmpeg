@@ -29,9 +29,9 @@ class AudioStream extends \Arhitector\Transcoder\Stream\AudioStream
 	 *
 	 * @param FormatInterface $format
 	 * @param string          $filePath
+	 * @param bool            $overwrite
 	 *
 	 * @return bool
-	 * @throws \RuntimeException
 	 */
 	public function save(FormatInterface $format, $filePath, $overwrite = true)
 	{
