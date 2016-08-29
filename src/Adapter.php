@@ -40,6 +40,45 @@ class Adapter implements AdapterInterface
 	use AdapterTrait, CommandOptionsTrait;
 	
 	/**
+	 * @var array Global options.
+	 */
+	protected static $options = [];
+	
+	/**
+	 * Set one global option.
+	 *
+	 * @param string $index
+	 * @param mixed  $value
+	 *
+	 * @return bool
+	 */
+	public static function setOption($index, $value)
+	{
+		if ( ! is_scalar($index))
+		{
+			throw new \InvalidArgumentException('Index must be a scalar type.');
+		}
+		
+		static::$options[$index] = $value;
+		
+		return true;
+	}
+	
+	/**
+	 * Replace global options.
+	 *
+	 * @param array $options
+	 *
+	 * @return bool
+	 */
+	public static function setOptions(array $options)
+	{
+		static::$options = $options;
+		
+		return true;
+	}
+	
+	/**
 	 * @var Executor
 	 */
 	protected $executor;
