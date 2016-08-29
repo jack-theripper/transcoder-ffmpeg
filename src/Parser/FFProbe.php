@@ -14,10 +14,13 @@
 namespace Arhitector\Transcoder\FFMpeg\Parser;
 
 use Arhitector\Transcoder\Codec;
-use Arhitector\Transcoder\FFMpeg\Stream\Audio;
-use Arhitector\Transcoder\FFMpeg\Stream\Video;
-use Arhitector\Transcoder\Format;
+use Arhitector\Transcoder\FFMpeg\Stream\AudioStream;
+use Arhitector\Transcoder\FFMpeg\Stream\SubtitleStream;
+use Arhitector\Transcoder\FFMpeg\Stream\VideoStream;
+use Arhitector\Transcoder\Format\FormatInterface;
 use Arhitector\Transcoder\Stream\StreamInterface;
+use Arhitector\Transcoder\Tools\FormatFinderTrait;
+use Arhitector\Transcoder\Tools\Instantiator;
 use Symfony\Component\Process\Process;
 use Symfony\Component\Process\ProcessUtils;
 
@@ -28,6 +31,7 @@ use Symfony\Component\Process\ProcessUtils;
  */
 class FFProbe implements ParserInterface
 {
+	use FormatFinderTrait;
 	
 	/**
 	 * @var string  Path to ffprobe.
@@ -36,14 +40,13 @@ class FFProbe implements ParserInterface
 	
 	
 	/**
-	 * Set ffprobe binary path.
+	 * Set the ffprobe binary path.
 	 *
 	 * @param string $path
 	 *
-	 * @return FFProbe
 	 * @throws \InvalidArgumentException
 	 */
-	public function setBinaryPath($path)
+	public function __construct($path)
 	{
 		if ( ! is_string($path))
 		{
@@ -51,8 +54,74 @@ class FFProbe implements ParserInterface
 		}
 		
 		$this->binaryPath = $path;
+	}
+	
+	/**
+	 * Receive and parse raw data.
+	 *
+	 * @param string $filePath
+	 *
+	 * @return array    streams, format and etc.
+	 * @throws \InvalidArgumentException
+	 * @throws \RuntimeException
+	 */
+	public function parse($filePath)
+	{
+		$output = $this->read($filePath);
 		
-		return $this;
+		if ( ! is_string($output))
+		{
+			throw new \InvalidArgumentException('Output must be a string type.');
+		}
+		
+		if (empty($output) || ! ($output = json_decode($output, true)))
+		{
+			throw new \InvalidArgumentException('Unable to parse ffprobe output.');
+		}
+		
+		$result = [];
+		
+		if (isset($output['error']))
+		{
+			$result['error'] = $output['error']['string'];
+		}
+		
+		if (isset($output['format']))
+		{
+			$result['format'] = $this->createFormat($filePath, $output['format']);
+			
+			if (isset($output['format']['tags']))
+			{
+				$result['properties'] = new \ArrayObject($output['format']['tags']);
+			}
+		}
+		
+		if (isset($output['streams']))
+		{
+			foreach ($output['streams'] as $stream)
+			{
+				try
+				{
+					$result['streams'][$stream['index']] = $this->createStream($filePath, $stream);
+				}
+				catch (\Exception $exc)
+				{
+					
+				}
+			}
+		}
+		
+		return $result;
+	}
+	
+	/**
+	 * Get ffprobe path.
+	 *
+	 * @return string
+	 */
+	public function getBinaryPath()
+	{
+		return $this->binaryPath;
 	}
 	
 	/**
@@ -63,7 +132,7 @@ class FFProbe implements ParserInterface
 	 * @return string
 	 * @throws \RuntimeException
 	 */
-	public function read($filePath)
+	protected function read($filePath)
 	{
 		if ( ! is_file($filePath))
 		{
@@ -82,148 +151,136 @@ class FFProbe implements ParserInterface
 	}
 	
 	/**
-	 * Parse raw data.
+	 * Normalize array and create a format instance.
 	 *
-	 * @param string $output
+	 * @param string $filePath
+	 * @param array  $parsed
 	 *
-	 * @return \stdClass    streams, format and etc.
-	 * @throws \InvalidArgumentException
+	 * @return FormatInterface
 	 */
-	public function parse($output)
+	protected function createFormat($filePath, array $parsed)
 	{
-		if ( ! is_string($output))
+		$format = $this->getFormatClassString($filePath, mime_content_type($filePath));
+		$format = new Instantiator($format);
+		
+		if (isset($parsed['format_long_name']))
 		{
-			throw new \InvalidArgumentException('Output must be a string type.');
+			$format->setValue('name', $parsed['format_long_name']);
 		}
 		
-		if (empty($output) || ! ($output = json_decode($output, true)))
+		if (isset($parsed['duration']))
 		{
-			throw new \InvalidArgumentException('Unable to parse ffprobe output.');
+			$format->setValue('duration', (float) $parsed['duration']);
 		}
 		
-		$result = new \stdClass;
-		
-		if (isset($output['error']))
+		if (isset($parsed['bit_rate']))
 		{
-			$result->error = $output['error']['string'];
+			$format->setValue('bitRate', (int) $parsed['bit_rate']);
 		}
 		
-		if (isset($output['format']))
-		{
-			$result->format = $this->normalizeFormat($output['format']);
-		}
-		
-		if (isset($output['streams']))
-		{
-			foreach ($output['streams'] as $stream)
-			{
-				$result->streams[$stream['index']] = $this->normalizeStream($stream);
-			}
-		}
-		
-		return $result;
+		return $format->getInstance();
 	}
 	
 	/**
-	 * Normalize array.
+	 * Create stream instance.
 	 *
-	 * @param array $parsed
-	 *
-	 * @return array
-	 */
-	protected function normalizeFormat(array $parsed)
-	{
-		$parsed = array_merge([
-			'format_name'      => '',
-			'format_long_name' => '',
-			'duration'         => 0.00,
-			'bit_rate'         => 0,
-			'probe_score'      => 0,
-			'tags'             => []
-		], $parsed);
-
-		$parsed = (object) $parsed;
-
-		$format = new Format((float) $parsed->duration, (int) $parsed->bit_rate, (string) $parsed->format_long_name,
-			(int) $parsed->probe_scope, array_map('trim', explode(',', (string) $parsed->format_name)));
-		$format->setProperties($parsed->tags ?: []);
-
-		return $format;
-	}
-	
-	/**
-	 * Normalize array.
-	 *
-	 * @param array $parsed
+	 * @param string $filePath
+	 * @param array  $parsed
 	 *
 	 * @return StreamInterface
-	 * @throws \InvalidArgumentException
 	 */
-	protected function normalizeStream(array $parsed)
+	protected function createStream($filePath, array $parsed)
 	{
 		if (isset($parsed['codec_type'], $parsed['codec_name'], $parsed['codec_long_name']))
 		{
+			$stream = null;
 			$codec = new Codec($parsed['codec_name'], $parsed['codec_long_name']);
-
-			if ($parsed['codec_type'] == 'audio')
+			$parsed = array_merge([
+				'index'        => 0,
+				'channels'     => 1,
+				'width'        => 0,
+				'height'       => 0,
+				'sample_rate'  => 0,
+				'bit_rate'     => 0,
+				'has_b_frames' => 0,
+				'r_frame_rate' => 0,
+				'start_time'   => 0,
+				'duration'     => 0,
+				'profile'      => '',
+				'tags'         => []
+			], $parsed);
+			
+			switch ($parsed['codec_type'])
 			{
-				$parsed = array_merge([
-					'index'       => 0,
-					'channels'    => 1,
-					'sample_rate' => 0,
-					'bit_rate'    => 0,
-					'start_time'  => 0,
-					'duration'    => 0,
-					'profile'     => '',
-					'tags'        => []
-				], $parsed);
-
-				return (new Audio($parsed['channels'], $parsed['sample_rate'], $parsed['index']))
-					->setBitRate($parsed['bit_rate'])
-					->setCodec($codec)
-					->setStartTime((float) $parsed['start_time'])
-					->setDuration((float) $parsed['duration'])
-					->setProfile($parsed['profile']);
+				case 'audio':
+					
+					$reflectionStream = new \ReflectionClass(AudioStream::class);
+					$stream = $reflectionStream->newInstanceWithoutConstructor();
+					$params = [
+						(int) $parsed['sample_rate'],
+						(int) $parsed['channels'],
+						$filePath,
+						$parsed['profile'],
+						(int) $parsed['bit_rate'],
+						(float) $parsed['start_time'],
+						(float) $parsed['duration']
+					];
+				
+				break;
+				
+				case 'video':
+					
+					$reflectionStream = new \ReflectionClass(VideoStream::class);
+					$stream = $reflectionStream->newInstanceWithoutConstructor();
+					$params = [
+						(int) $parsed['width'],
+						(int) $parsed['height'],
+						(float) $parsed['r_frame_rate'],
+						$filePath,
+						$parsed['profile'],
+						(int) $parsed['bit_rate'],
+						(float) $parsed['start_time'],
+						(float) $parsed['duration']
+					];
+				
+				break;
+				
+				case 'subtitle':
+					
+					$reflectionStream = new \ReflectionClass(SubtitleStream::class);
+					$stream = $reflectionStream->newInstanceWithoutConstructor();
+					$params = [
+						$filePath,
+						$parsed['profile'],
+						(int) $parsed['bit_rate'],
+						(float) $parsed['start_time'],
+						(float) $parsed['duration']
+					];
+				
+				break;
 			}
 			
-			if ($parsed['codec_type'] == 'video')
+			if ($stream instanceof StreamInterface)
 			{
-				$parsed = array_merge([
-					'index'        => 0,
-					'width'        => 1,
-					'height'       => 0,
-					'has_b_frames' => 0,
-					'r_frame_rate' => 0,
-					'bit_rate'     => 0,
-					'start_time'   => 0,
-					'duration'     => 0,
-					'profile'      => '',
-					'tags'         => []
-				], $parsed);
-
-				return (new Video($parsed['width'], $parsed['height'], (float) $parsed['r_frame_rate'],
-						$parsed['has_b_frames'], $parsed['index']))
-					->setBitRate($parsed['bit_rate'])
-					->setCodec($codec)
-					->setStartTime((float) $parsed['start_time'])
-					->setDuration((float) $parsed['duration'])
-					->setProfile($parsed['profile']);
+				$stream->setCodec($codec);
+				$stream->setIndex((int) $parsed['index']);
+				
+				$reflection = $reflectionStream->getConstructor();
+				$reflection->setAccessible(true);
+				$reflection->invokeArgs($stream, $params);
+				
+				foreach ($parsed['tags'] as $key => $value)
+				{
+					$stream[$key] = $value;
+				}
+				
+				return $stream;
 			}
-
+			
 			throw new \RuntimeException('Not supported codec type.');
 		}
-
+		
 		throw new \InvalidArgumentException('Unable to parse ffprobe output: not found "codec_type" etc.');
-	}
-	
-	/**
-	 * Get ffprobe path.
-	 *
-	 * @return string
-	 */
-	protected function getBinaryPath()
-	{
-		return $this->binaryPath;
 	}
 	
 }
