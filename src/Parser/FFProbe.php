@@ -38,7 +38,6 @@ class FFProbe implements ParserInterface
 	 */
 	protected $binaryPath = 'ffprobe';
 	
-	
 	/**
 	 * Set the ffprobe binary path.
 	 *
@@ -162,21 +161,15 @@ class FFProbe implements ParserInterface
 	{
 		$format = $this->getFormatClassString($filePath, mime_content_type($filePath));
 		$format = new Instantiator($format);
+		$parsed += [
+			'format_long_name' => '',
+			'duration'         => .0,
+			'bit_rate'         => 0
+		];
 		
-		if (isset($parsed['format_long_name']))
-		{
-			$format->setValue('name', $parsed['format_long_name']);
-		}
-		
-		if (isset($parsed['duration']))
-		{
-			$format->setValue('duration', (float) $parsed['duration']);
-		}
-		
-		if (isset($parsed['bit_rate']))
-		{
-			$format->setValue('bitRate', (int) $parsed['bit_rate']);
-		}
+		$format->setValue('name', $parsed['format_long_name'])
+			->setValue('duration', (float) $parsed['duration'])
+			->setValue('bitRate', (int) $parsed['bit_rate']);
 		
 		return $format->getInstance();
 	}
@@ -191,11 +184,11 @@ class FFProbe implements ParserInterface
 	 */
 	protected function createStream($filePath, array $parsed)
 	{
-		if (isset($parsed['codec_type'], $parsed['codec_name'], $parsed['codec_long_name']))
+		if (isset($parsed['codec_type'], $parsed['codec_name']))
 		{
 			$stream = null;
-			$codec = new Codec($parsed['codec_name'], $parsed['codec_long_name']);
-			$parsed = array_merge([
+			$parsed += [
+				'codec_long_name' => '',
 				'index'        => 0,
 				'channels'     => 1,
 				'width'        => 0,
@@ -208,15 +201,15 @@ class FFProbe implements ParserInterface
 				'duration'     => 0,
 				'profile'      => '',
 				'tags'         => []
-			], $parsed);
+			];
+			
+			$codec = new Codec($parsed['codec_name'], $parsed['codec_long_name']);
 			
 			switch ($parsed['codec_type'])
 			{
 				case 'audio':
 					
-					$reflectionStream = new \ReflectionClass(AudioStream::class);
-					$stream = $reflectionStream->newInstanceWithoutConstructor();
-					$params = [
+					$stream = new Instantiator(AudioStream::class, [
 						(int) $parsed['sample_rate'],
 						(int) $parsed['channels'],
 						$filePath,
@@ -224,15 +217,13 @@ class FFProbe implements ParserInterface
 						(int) $parsed['bit_rate'],
 						(float) $parsed['start_time'],
 						(float) $parsed['duration']
-					];
-				
+					]);
+					
 				break;
 				
 				case 'video':
 					
-					$reflectionStream = new \ReflectionClass(VideoStream::class);
-					$stream = $reflectionStream->newInstanceWithoutConstructor();
-					$params = [
+					$stream = new Instantiator(VideoStream::class, [
 						(int) $parsed['width'],
 						(int) $parsed['height'],
 						(float) $parsed['r_frame_rate'],
@@ -241,33 +232,28 @@ class FFProbe implements ParserInterface
 						(int) $parsed['bit_rate'],
 						(float) $parsed['start_time'],
 						(float) $parsed['duration']
-					];
+					]);
 				
 				break;
 				
 				case 'subtitle':
 					
-					$reflectionStream = new \ReflectionClass(SubtitleStream::class);
-					$stream = $reflectionStream->newInstanceWithoutConstructor();
-					$params = [
+					$stream = new Instantiator(SubtitleStream::class, [
 						$filePath,
 						$parsed['profile'],
 						(int) $parsed['bit_rate'],
 						(float) $parsed['start_time'],
 						(float) $parsed['duration']
-					];
+					]);
 				
 				break;
 			}
 			
-			if ($stream instanceof StreamInterface)
+			if ($stream != null)
 			{
+				$stream = $stream->getInstance();
 				$stream->setCodec($codec);
 				$stream->setIndex((int) $parsed['index']);
-				
-				$reflection = $reflectionStream->getConstructor();
-				$reflection->setAccessible(true);
-				$reflection->invokeArgs($stream, $params);
 				
 				foreach ($parsed['tags'] as $key => $value)
 				{
