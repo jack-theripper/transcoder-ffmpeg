@@ -14,15 +14,16 @@
 namespace Arhitector\Transcoder\FFMpeg\Stream;
 
 use Arhitector\Transcoder\Format\FormatInterface;
+use Arhitector\Transcoder\Stream\AudioStreamInterface;
 
 /**
  * Class AudioStream
  *
  * @package Arhitector\Transcoder\FFMpeg\Stream
  */
-class AudioStream extends \Arhitector\Transcoder\Stream\AudioStream
+class AudioStream extends \Arhitector\Transcoder\Stream\AudioStream implements AudioStreamInterface
 {
-	use InjectExecutorTrait;
+	use StreamTrait;
 	
 	/**
 	 * Stream save.

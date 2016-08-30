@@ -13,46 +13,30 @@
  */
 namespace Arhitector\Transcoder\FFMpeg\Stream;
 
-use Arhitector\Transcoder\DecoratorTrait;
-use Arhitector\Transcoder\FFMpeg\Executor;
 use Arhitector\Transcoder\Format\FormatInterface;
-use Arhitector\Transcoder\Stream\VideoStreamInterface;
+use Arhitector\Transcoder\Stream\SubtitleStreamInterface;
 
 /**
- * Class Video.
+ * Class SubtitleStream
  *
  * @package Arhitector\Transcoder\FFMpeg\Stream
  */
-class Video extends \Arhitector\Transcoder\Stream\Video implements VideoStreamInterface
+class SubtitleStream extends \Arhitector\Transcoder\Stream\SubtitleStream implements SubtitleStreamInterface
 {
-	use DecoratorTrait;
-
-	/**
-	 * Executor instance.
-	 *
-	 * @param Executor $executor
-	 *
-	 * @return Audio
-	 */
-	public function inject(Executor $executor)
-	{
-		$this->decorator = $executor;
-
-		return $this;
-	}
-
+	use StreamTrait;
+	
 	/**
 	 * Stream save.
 	 *
 	 * @param FormatInterface $format
 	 * @param string          $filePath
+	 * @param bool            $overwrite
 	 *
 	 * @return bool
 	 */
-	public function save(FormatInterface $format, $filePath)
+	public function save(FormatInterface $format, $filePath, $overwrite = true)
 	{
 		
-
 	}
 	
 }
