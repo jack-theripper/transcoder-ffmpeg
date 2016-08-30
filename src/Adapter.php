@@ -95,7 +95,7 @@ class Adapter implements AdapterInterface
 			'ffmpeg.threads' => null,
 			'ffprobe.path'   => 'ffprobe',
 			'timeout'        => 0
-		], $options);
+		], self::$options, $options);
 		
 		foreach ([
 			'ffmpeg.path'  => $options['ffmpeg.path'],
