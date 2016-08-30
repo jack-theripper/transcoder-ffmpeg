@@ -80,7 +80,7 @@ class CommandExecutor
 	/**
 	 * Execute ffmpeg command.
 	 *
-	 * @param array|ProcessBuilder $options
+	 * @param string[]|ProcessBuilder $options
 	 * @param callable             $callback
 	 *
 	 * @return Process
@@ -94,7 +94,7 @@ class CommandExecutor
 	/**
 	 * Run command line.
 	 *
-	 * @param array|ProcessBuilder $options
+	 * @param string[]|ProcessBuilder $options
 	 * @param callable             $callback
 	 *
 	 * @return Process
@@ -118,7 +118,7 @@ class CommandExecutor
 	/**
 	 * Process builder.
 	 *
-	 * @param array|ProcessBuilder $builder
+	 * @param string[]|ProcessBuilder $builder
 	 *
 	 * @return Process
 	 */
