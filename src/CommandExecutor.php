@@ -80,8 +80,8 @@ class CommandExecutor
 	/**
 	 * Execute ffmpeg command.
 	 *
-	 * @param array    $options
-	 * @param callable $callback
+	 * @param array|ProcessBuilder $options
+	 * @param callable             $callback
 	 *
 	 * @return Process
 	 */
@@ -94,14 +94,14 @@ class CommandExecutor
 	/**
 	 * Run command line.
 	 *
-	 * @param array    $options
-	 * @param callable $callback
+	 * @param array|ProcessBuilder $options
+	 * @param callable             $callback
 	 *
 	 * @return Process
 	 */
 	public function executeAsync($options, callable $callback = null)
 	{
-		$process = $this->getCommandProcess($options);
+		$process = $this->ensureProcess($options);
 		
 		try
 		{
@@ -118,17 +118,20 @@ class CommandExecutor
 	/**
 	 * Process builder.
 	 *
-	 * @param array $options
+	 * @param array|ProcessBuilder $builder
 	 *
 	 * @return Process
 	 */
-	protected function getCommandProcess($options)
+	protected function ensureProcess($builder)
 	{
-		$builder = new ProcessBuilder($options);
-		$builder->setPrefix($this->options['ffmpeg.path'])
-			->setTimeout($this->options['timeout']);
+		if ( ! $builder instanceof ProcessBuilder)
+		{
+			$builder = new ProcessBuilder($builder);
+		}
 		
-		return $builder->getProcess();
+		return $builder->setPrefix($this->options['ffmpeg.path'])
+			->setTimeout($this->options['timeout'])
+			->getProcess();
 	}
 	
 	/**
