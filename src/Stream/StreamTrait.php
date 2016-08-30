@@ -35,7 +35,7 @@ trait StreamTrait
 	 *
 	 * @return $this
 	 */
-	protected function setAdapter(AdapterInterface $adapter)
+	public function setAdapter(AdapterInterface $adapter)
 	{
 		if ( ! $this->adapter)
 		{
