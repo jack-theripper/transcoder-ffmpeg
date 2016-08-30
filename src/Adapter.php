@@ -79,7 +79,7 @@ class Adapter implements AdapterInterface
 	}
 	
 	/**
-	 * @var Executor
+	 * @var CommandExecutor
 	 */
 	protected $executor;
 	
@@ -117,7 +117,7 @@ class Adapter implements AdapterInterface
 			}
 		}
 		
-		$this->setExecutor(new Executor($options));
+		$this->setExecutor(new CommandExecutor($options));
 	}
 	
 	/**
@@ -440,11 +440,11 @@ class Adapter implements AdapterInterface
 	/**
 	 * Set Executor instance.
 	 *
-	 * @param Executor $instance
+	 * @param CommandExecutor $instance
 	 *
 	 * @return Adapter
 	 */
-	protected function setExecutor(Executor $instance)
+	protected function setExecutor(CommandExecutor $instance)
 	{
 		$this->executor = $instance;
 		

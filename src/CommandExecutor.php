@@ -25,7 +25,7 @@ use Symfony\Component\Process\ProcessBuilder;
  *
  * @package Arhitector\Transcoder\FFMpeg
  */
-class Executor
+class CommandExecutor
 {
 	
 	/**
@@ -136,7 +136,7 @@ class Executor
 	 *
 	 * @param ParserInterface $parser
 	 *
-	 * @return Executor
+	 * @return CommandExecutor
 	 */
 	protected function setParser(ParserInterface $parser)
 	{
@@ -150,7 +150,7 @@ class Executor
 	 *
 	 * @param array $options
 	 *
-	 * @return Executor
+	 * @return CommandExecutor
 	 */
 	protected function setOptions(array $options)
 	{
