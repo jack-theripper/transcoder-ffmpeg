@@ -20,9 +20,6 @@ use Arhitector\Transcoder\Exception\ExecutableNotFoundException;
 use Arhitector\Transcoder\Filter\FilterInterface;
 use Arhitector\Transcoder\Filter\HandlerFilterInterface;
 use Arhitector\Transcoder\Format\FormatInterface;
-use Arhitector\Transcoder\Format\SimpleAudio;
-use Arhitector\Transcoder\Format\SimpleSubtitle;
-use Arhitector\Transcoder\Format\SimpleVideo;
 use Arhitector\Transcoder\SubtitleInterface;
 use Arhitector\Transcoder\Tools\Options;
 use Arhitector\Transcoder\Tools\TemporaryPath;
@@ -181,49 +178,35 @@ class Adapter implements AdapterInterface
 	{
 		$parsed = $this->executor->parse($media->getFilePath());
 		
-		if ( ! isset($parsed['format']))
+		if ( ! $parsed->format)
 		{
 			if ($media instanceof AudioInterface)
 			{
-				$this->setFormat(new SimpleAudio());
+				$parsed->format = new \Arhitector\Transcoder\Format\SimpleAudio();
 			}
 			else if ($media instanceof VideoInterface)
 			{
-				$this->setFormat(new SimpleVideo());
+				$parsed->format = new \Arhitector\Transcoder\Format\SimpleVideo();
 			}
 			else if ($media instanceof SubtitleInterface)
 			{
-				$this->setFormat(new SimpleSubtitle());
-			}
-			else
-			{
-				throw new \RuntimeException('The format not found.');
-			}
-		}
-		else
-		{
-			$this->setFormat($parsed['format']);
-		}
-		
-		if (isset($parsed['properties']))
-		{
-			foreach ($parsed['properties'] as $property => $value)
-			{
-				$media[$property] = $value;
+				$parsed->format = new \Arhitector\Transcoder\Format\SimpleSubtitle();
 			}
 		}
 		
-		if ( ! isset($parsed['streams']))
+		$this->setFormat($parsed->format);
+		
+		foreach ($parsed->properties as $property => $value)
 		{
-			$parsed['streams'];
+			$media[$property] = $value;
 		}
 		
-		foreach ($parsed['streams'] as $stream)
+		foreach ((array) $parsed->streams as $stream)
 		{
-			$stream->injectExecutor($this->executor);
+			$stream->setAdapter($this);
 		}
 		
-		$this->setStreams(\SplFixedArray::fromArray($parsed['streams']));
+		$this->setStreams(\SplFixedArray::fromArray($parsed->streams));
 	}
 	
 	/**
