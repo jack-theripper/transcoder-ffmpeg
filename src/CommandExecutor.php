@@ -63,25 +63,29 @@ class CommandExecutor
 	 * @param $filePath
 	 *
 	 * @return \stdClass
-	 * @throws \InvalidArgumentException
+	 * @throws \RuntimeException
 	 */
 	public function parse($filePath)
 	{
-		$parsed = $this->parser->parse($filePath);
+		$parsed = array_merge([
+			'format'     => null,
+			'streams'    => null,
+			'properties' => []
+		], $this->parser->parse($filePath));
 		
-		if (isset($parsed->error))
+		if ( ! empty($parsed['error']))
 		{
-			throw new \RuntimeException($parsed->error);
+			throw new \RuntimeException($parsed['error']);
 		}
 		
-		return $parsed;
+		return (object) $parsed;
 	}
 	
 	/**
 	 * Execute ffmpeg command.
 	 *
 	 * @param string[]|ProcessBuilder $options
-	 * @param callable             $callback
+	 * @param callable                $callback
 	 *
 	 * @return Process
 	 */
@@ -95,7 +99,7 @@ class CommandExecutor
 	 * Run command line.
 	 *
 	 * @param string[]|ProcessBuilder $options
-	 * @param callable             $callback
+	 * @param callable                $callback
 	 *
 	 * @return Process
 	 */
