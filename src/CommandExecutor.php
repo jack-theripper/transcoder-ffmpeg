@@ -130,6 +130,14 @@ class CommandExecutor
 	{
 		if ( ! $builder instanceof ProcessBuilder)
 		{
+			if ($this->options['ffmpeg.threads'] !== null && ! in_array('-threads', $builder))
+			{
+				if (($input = array_search('-i', $builder)))
+				{
+					array_splice($builder, $input + 2, 0, ['-threads', (int) $this->options['ffmpeg.threads']]);
+				}
+			}
+			
 			$builder = new ProcessBuilder($builder);
 		}
 		
