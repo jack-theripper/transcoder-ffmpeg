@@ -74,8 +74,20 @@ trait CommandOptionsTrait
 			{
 				$options['video_bitrate'] = $format->getVideoKiloBitRate().'k';
 			}
+			
+			$options['refs'] = 6;
+			$options['coder'] = 1;
+			$options['sc_threshold'] = 40;
+			$options['flags'] = '+loop';
+			//$options['movflags'] = '+faststart';
+			$options['me_range'] = 16;
+			$options['subq'] = 7;
+			$options['i_qfactor'] = .71;
+			$options['qcomp'] = .6;
+			$options['qdiff'] = 4;
+			$options['trellis'] = 1;
 		}
-		
+
 		if ($format instanceof SubtitleFormatInterface)
 		{
 			
