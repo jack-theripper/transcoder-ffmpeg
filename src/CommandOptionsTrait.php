@@ -93,9 +93,9 @@ trait CommandOptionsTrait
 	 */
 	protected function getForceFormatOptions(FormatInterface $format)
 	{
-		if ( ! ($mapping = CacheStorage::get('forceFormat')))
+		if ( ! ($mapping = CacheStorage::get('force.format')))
 		{
-			$mapping = CacheStorage::set('forceFormat', (array) require_once __DIR__.'/bin/force_format.php');
+			$mapping = CacheStorage::set('force.format', (array) require_once __DIR__.'/bin/force_format.php');
 		}
 		
 		$formatExtensions = $format->getExtensions();
