@@ -152,7 +152,29 @@ class Adapter implements AdapterInterface
 	 */
 	public function getSupportedCodecs($mask, $strict = false)
 	{
-		// TODO: Implement getSupportedCodecs() method.
+		$results = [];
+		
+		if ( ! ($codecs = CacheStorage::get('supported.codecs', false)))
+		{
+			$codecs = CacheStorage::set('supported.codecs', $this->getAvailableCodecs());
+		}
+		
+		foreach ((array) $codecs as $codec => $value)
+		{
+			if ($strict)
+			{
+				if ($mask <= ($value & $mask))
+				{
+					$results[] = $codec;
+				}
+			}
+			else if ($value & $mask)
+			{
+				$results[] = $codec;
+			}
+		}
+		
+		return $results;
 	}
 	
 	/**
@@ -372,11 +394,11 @@ class Adapter implements AdapterInterface
 		$codecs = [];
 		$bit = [
 			'.' => 0,
-			'A' => TranscoderInterface::CODEC_AUDIO,
-			'V' => TranscoderInterface::CODEC_VIDEO,
-			'S' => TranscoderInterface::CODEC_SUBTITLE,
-			'E' => TranscoderInterface::CODEC_ENCODER,
-			'D' => TranscoderInterface::CODEC_DECODER
+			'A' => 1,
+			'V' => 2,
+			'S' => 4,
+			'E' => 8,
+			'D' => 16
 		];
 		
 		foreach ([
