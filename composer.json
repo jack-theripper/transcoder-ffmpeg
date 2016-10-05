@@ -1,7 +1,6 @@
 {
 	"name": "arhitector/transcoder-ffmpeg",
 	"description": "FFMpeg adapter for arhitector/transcoder.",
-	"minimum-stability": "stable",
 	"license": "MIT",
 	"authors": [
 		{
@@ -13,9 +12,6 @@
 		"psr-4": {
 			"Arhitector\\Transcoder\\FFMpeg\\": "src",
 		}
-	},
-	"autoload-dev": {
-		"Arhitector\\Transcoder\\FFMpeg\\Tests\\": "tests"
 	},
 	"require": {
 		"arhitector/transcoder": "dev-master"
