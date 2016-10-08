@@ -15,9 +15,11 @@ namespace Arhitector\Transcoder\Adapter\FFMpeg\Parser;
 
 use Arhitector\Transcoder\Adapter\FFMpeg\Executor;
 use Arhitector\Transcoder\Adapter\FFMpeg\ProcessBuilder;
+use Arhitector\Transcoder\Codec;
 use Arhitector\Transcoder\Exception\ExecutableNotFoundException;
 use Arhitector\Transcoder\Exception\TranscoderException;
 use Arhitector\Transcoder\MediaInterface;
+use Arhitector\Transcoder\Stream\AudioStream;
 use Arhitector\Transcoder\Stream\StreamInterface;
 use ArrayObject;
 
@@ -78,11 +80,11 @@ class FFProbe implements ParserInterface
 			{
 				try
 				{
-					$result['streams'][$stream['index']] = $this->createStreamInstance($media, $stream);
+					$parsed['streams'][$stream['index']] = $this->createStreamInstance($media, $stream);
 				}
 				catch (\Exception $exc)
 				{
-					
+					var_dump($exc);
 				}
 			}
 		}
@@ -160,7 +162,37 @@ class FFProbe implements ParserInterface
 	{
 		if (isset($parsed['codec_type'], $parsed['codec_name']))
 		{
+			$stream = null;
 			
+			if ($parsed['codec_type'] == 'audio')
+			{
+				$stream = AudioStream::create($media, null, [
+					'frequency' => isset($parsed['sample_rate']) ? (int) $parsed['sample_rate'] : 0,
+					'channels'  => isset($parsed['channels']) ? (int) $parsed['channels'] : 1,
+					'profile'   => isset($parsed['profile']) ? (string) $parsed['profile'] : '',
+					'bitRate'   => isset($parsed['bit_rate']) ? (int) $parsed['bit_rate'] : 0,
+					'startTime' => isset($parsed['start_time']) ? (float) $parsed['start_time'] : .0,
+					'duration'  => isset($parsed['duration']) ? (float) $parsed['duration'] : .0
+				]);
+			}
+			
+			if ($stream !== null)
+			{
+				$stream->setCodec(new Codec($parsed['codec_name'], $parsed['codec_long_name']));
+				$stream->setIndex(isset($parsed['index']) ? (int) $parsed['index'] : 0);
+				
+				if ( ! empty($parsed['tags']))
+				{
+					foreach ($parsed['tags'] as $key => $value)
+					{
+						$stream->offsetSet($key, $value);
+					}
+				}
+				
+				return $stream;
+			}
+			
+			throw new TranscoderException('Not supported codec type.');
 		}
 		
 		throw new \InvalidArgumentException('Unable to parse ffprobe output: not found "codec_type" etc.');
