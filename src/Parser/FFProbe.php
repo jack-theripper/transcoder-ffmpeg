@@ -18,6 +18,7 @@ use Arhitector\Transcoder\Adapter\FFMpeg\ProcessBuilder;
 use Arhitector\Transcoder\Exception\ExecutableNotFoundException;
 use Arhitector\Transcoder\Exception\TranscoderException;
 use Arhitector\Transcoder\MediaInterface;
+use Arhitector\Transcoder\Stream\StreamInterface;
 use ArrayObject;
 
 /**
@@ -33,6 +34,15 @@ class FFProbe implements ParserInterface
 	 *
 	 * @param MediaInterface $media
 	 * @param Executor       $executor
+	 *
+	 * <code>
+	 * $parsed = [
+	 *      'error'      => 'error string',
+	 *      'format'     => array,
+	 *      'properties' => object(ArrayObject),
+	 *      'streams'    => object(Streams)
+	 * ];
+	 * </code>
 	 *
 	 * @return array
 	 */
@@ -54,12 +64,29 @@ class FFProbe implements ParserInterface
 		
 		if (isset($raw_data['format']))
 		{
+			$parsed['format'] = $this->getFormatFromRawData($raw_data['format']);
+			
 			if (isset($raw_data['format']['tags']))
 			{
 				$parsed['properties'] = new ArrayObject($raw_data['format']['tags']);
 			}
 		}
-
+		
+		if (isset($raw_data['streams']))
+		{
+			foreach ((array) $raw_data['streams'] as $stream)
+			{
+				try
+				{
+					$result['streams'][$stream['index']] = $this->createStreamInstance($media, $stream);
+				}
+				catch (\Exception $exc)
+				{
+					
+				}
+			}
+		}
+		
 		return $parsed;
 	}
 	
@@ -103,6 +130,40 @@ class FFProbe implements ParserInterface
 		}
 		
 		return $output;
+	}
+	
+	/**
+	 * Normalize array.
+	 *
+	 * @param array $raw_data
+	 *
+	 * @return array
+	 */
+	protected function getFormatFromRawData(array $raw_data)
+	{
+		return [
+			'bit_rate' => isset($raw_data['bit_rate']) ? (int) $raw_data['bit_rate'] : 0,
+			'duration' => isset($raw_data['duration']) ? (float) $raw_data['duration'] : .0,
+			'name'     => isset($raw_data['format_long_name']) ? $raw_data['format_long_name'] : ''
+		];
+	}
+	
+	/**
+	 * Create stream instance.
+	 *
+	 * @param MediaInterface $media
+	 * @param array          $parsed
+	 *
+	 * @return StreamInterface
+	 */
+	protected function createStreamInstance(MediaInterface $media, array $parsed)
+	{
+		if (isset($parsed['codec_type'], $parsed['codec_name']))
+		{
+			
+		}
+		
+		throw new \InvalidArgumentException('Unable to parse ffprobe output: not found "codec_type" etc.');
 	}
 	
 }
