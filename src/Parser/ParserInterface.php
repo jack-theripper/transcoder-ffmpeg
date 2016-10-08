@@ -11,12 +11,15 @@
  * @license   http://opensource.org/licenses/MIT MIT
  * @copyright Copyright (c) 2016 Dmitry Arhitector <dmitry.arhitector@yandex.ru>
  */
-namespace Arhitector\Transcoder\FFMpeg\Parser;
+namespace Arhitector\Transcoder\Adapter\FFMpeg\Parser;
+
+use Arhitector\Transcoder\Adapter\FFMpeg\Executor;
+use Arhitector\Transcoder\MediaInterface;
 
 /**
- * Interface ParserInterface.
+ * Interface ParserInterface
  *
- * @package Arhitector\Transcoder\FFMpeg\Parser
+ * @package Arhitector\Transcoder\Adapter\FFMpeg\Parser
  */
 interface ParserInterface
 {
@@ -24,17 +27,11 @@ interface ParserInterface
 	/**
 	 * Receive and parse raw data.
 	 *
-	 * @param string $filePath
+	 * @param MediaInterface $media
+	 * @param Executor       $executor
 	 *
-	 * @return array    streams, format and etc.
+	 * @return array
 	 */
-	public function parse($filePath);
-	
-	/**
-	 * Get binary path.
-	 *
-	 * @return string
-	 */
-	public function getBinaryPath();
+	public function parse(MediaInterface $media, Executor $executor);
 	
 }
