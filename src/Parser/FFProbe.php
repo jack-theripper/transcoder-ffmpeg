@@ -21,8 +21,8 @@ use Arhitector\Transcoder\Exception\TranscoderException;
 use Arhitector\Transcoder\MediaInterface;
 use Arhitector\Transcoder\Stream\AudioStream;
 use Arhitector\Transcoder\Stream\StreamInterface;
+use Arhitector\Transcoder\Stream\SubtitleStream;
 use Arhitector\Transcoder\Stream\VideoStream;
-use ArrayObject;
 
 /**
  * Class FFProbe
@@ -71,7 +71,7 @@ class FFProbe implements ParserInterface
 			
 			if (isset($raw_data['format']['tags']))
 			{
-				$parsed['properties'] = new ArrayObject($raw_data['format']['tags']);
+				$parsed['properties'] = new \ArrayObject($raw_data['format']['tags']);
 			}
 		}
 		
@@ -146,7 +146,7 @@ class FFProbe implements ParserInterface
 	{
 		return [
 			'bit_rate' => isset($raw_data['bit_rate']) ? (int) $raw_data['bit_rate'] : 0,
-			'duration' => isset($raw_data['duration']) ? (float) $raw_data['duration'] : .0,
+			'duration' => isset($raw_data['duration']) ? (float) $raw_data['duration'] : 0.0,
 			'name'     => isset($raw_data['format_long_name']) ? $raw_data['format_long_name'] : ''
 		];
 	}
@@ -167,25 +167,34 @@ class FFProbe implements ParserInterface
 			
 			if ($parsed['codec_type'] == 'audio')
 			{
-				$stream = AudioStream::create($media, null, [
-					'frequency' => isset($parsed['sample_rate']) ? (int) $parsed['sample_rate'] : 0,
-					'channels'  => isset($parsed['channels']) ? (int) $parsed['channels'] : 1,
-					'profile'   => isset($parsed['profile']) ? (string) $parsed['profile'] : '',
-					'bitRate'   => isset($parsed['bit_rate']) ? (int) $parsed['bit_rate'] : 0,
-					'startTime' => isset($parsed['start_time']) ? (float) $parsed['start_time'] : .0,
-					'duration'  => isset($parsed['duration']) ? (float) $parsed['duration'] : .0
+				$stream = AudioStream::create($media, [
+					'frequency'  => isset($parsed['sample_rate']) ? (int) $parsed['sample_rate'] : 0,
+					'channels'   => isset($parsed['channels']) ? (int) $parsed['channels'] : 1,
+					'profile'    => isset($parsed['profile']) ? (string) $parsed['profile'] : '',
+					'bit_rate'   => isset($parsed['bit_rate']) ? (int) $parsed['bit_rate'] : 0,
+					'start_time' => isset($parsed['start_time']) ? (float) $parsed['start_time'] : 0.0,
+					'duration'   => isset($parsed['duration']) ? (float) $parsed['duration'] : 0.0
 				]);
 			}
 			else if ($parsed['codec_type'] == 'video')
 			{
-				$stream = VideoStream::create($media, null, [
-					'width'     => isset($parsed['width']) ? (int) $parsed['width'] : 0,
-					'height'    => isset($parsed['height']) ? (int) $parsed['height'] : 0,
-					'frameRate' => isset($parsed['r_frame_rate']) ? (float) $parsed['r_frame_rate'] : .0,
-					'profile'   => isset($parsed['profile']) ? (string) $parsed['profile'] : '',
-					'bitRate'   => isset($parsed['bit_rate']) ? (int) $parsed['bit_rate'] : 0,
-					'startTime' => isset($parsed['start_time']) ? (float) $parsed['start_time'] : .0,
-					'duration'  => isset($parsed['duration']) ? (float) $parsed['duration'] : .0
+				$stream = VideoStream::create($media, [
+					'width'      => isset($parsed['width']) ? (int) $parsed['width'] : 0,
+					'height'     => isset($parsed['height']) ? (int) $parsed['height'] : 0,
+					'frame_rate' => isset($parsed['r_frame_rate']) ? (float) $parsed['r_frame_rate'] : 0.0,
+					'profile'    => isset($parsed['profile']) ? (string) $parsed['profile'] : '',
+					'bit_rate'   => isset($parsed['bit_rate']) ? (int) $parsed['bit_rate'] : 0,
+					'start_time' => isset($parsed['start_time']) ? (float) $parsed['start_time'] : 0.0,
+					'duration'   => isset($parsed['duration']) ? (float) $parsed['duration'] : 0.0
+				]);
+			}
+			else if ($parsed['codec_type'] == 'subtitle')
+			{
+				$stream = SubtitleStream::create($media, [
+					'profile'    => isset($parsed['profile']) ? (string) $parsed['profile'] : '',
+					'bit_rate'   => isset($parsed['bit_rate']) ? (int) $parsed['bit_rate'] : 0,
+					'start_time' => isset($parsed['start_time']) ? (float) $parsed['start_time'] : 0.0,
+					'duration'   => isset($parsed['duration']) ? (float) $parsed['duration'] : 0.0
 				]);
 			}
 			
