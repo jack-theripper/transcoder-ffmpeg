@@ -115,8 +115,8 @@ class Adapter implements AdapterInterface
 			throw new TranscoderException($parsed['error']);
 		}
 		
-		$format = $this->findFormatClass($media);
-		$format = new $format();
+		$format     = $this->findFormatClass($media);
+		$format     = new $format();
 		$reflection = new \ReflectionClass($format);
 		
 		$method = $reflection->getMethod('setBitRate');
@@ -154,7 +154,72 @@ class Adapter implements AdapterInterface
 	 */
 	public function transcode(MediaInterface $media, FormatInterface $format, Filters $filters)
 	{
-		// TODO: Implement transcode() method.
+		$options_ = array_merge([
+			'y',
+			'input'  => [$media->getFilePath(),],
+			'strict' => -2
+		], []);
+		
+		foreach ($filters as $filter)
+		{
+			$options_ = array_replace_recursive($options_, $filter->apply($media, $format));
+		}
+		
+		if ( ! isset($options_['output']))
+		{
+			throw new TranscoderException('Output file path not found.');
+		}
+		
+		$filePath = $options_['output'];
+		$options  = array_diff_key($options_, array_fill_keys(array_merge([
+			'ffmpeg_force_format',
+			'ffmpeg_video_filters',
+			'ffmpeg_audio_filters'
+		], Process::getInternalOptions()), null));
+		
+		foreach (
+			[
+				'input'                  => 'i',
+				//'output'                 => '',
+				'audio_disable'          => 'an',
+				'audio_quality'          => 'qscale:a',
+				'audio_codec'            => 'codec:a',
+				'audio_bitrate'          => 'b:a',
+				'audio_sample_frequency' => 'ar',
+				'audio_channels'         => 'ac',
+				//'audio_volume',
+				'video_disable'          => 'vn',
+				'video_quality'          => 'qscale:v',
+				'video_codec'            => 'codec:v',
+				'video_aspect_ratio'     => 'aspect',
+				'video_frame_rate'       => 'r',
+				'video_max_frames'       => 'vframes',
+				'video_bitrate'          => 'b:v',
+				'video_pixel_format'     => 'pix_fmt',
+				//'force_format',
+				//'metadata'               => 'metadata',
+				'ffmpeg_force_format'    => '-f',
+				'ffmpeg_video_filters'   => (sizeof($options_['input']) > 1 ? '-filter_complex:v' : '-filter:v'),
+				'ffmpeg_audio_filters'   => (sizeof($options_['input']) > 1 ? '-filter_complex:a' : '-filter:a')
+			] as $option => $value
+		)
+		{
+			if (isset($options_[$option]))
+			{
+				$options[$value] = $options_[$option];
+				
+				if (is_bool($options_[$option]))
+				{
+					$options[$value] = '';
+				}
+			}
+		}
+		
+		$options_ = new ProcessBuilder($options);
+		$options_->add($filePath);
+		$options_->setPrefix($this->executor->getOption('ffmpeg.path'));
+		
+		return [$this->executor->executeAsync($options_)];
 	}
 	
 	/**
