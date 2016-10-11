@@ -127,6 +127,16 @@ class ProcessBuilder extends \Symfony\Component\Process\ProcessBuilder
 	}
 	
 	/**
+	 * Get the prefix value.
+	 *
+	 * @return array
+	 */
+	public function getPrefix()
+	{
+		return $this->prefix;
+	}
+	
+	/**
 	 * Sets the arguments of the process.
 	 *
 	 * Arguments must not be escaped.
