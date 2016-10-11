@@ -78,17 +78,22 @@ class ProcessBuilder extends \Symfony\Component\Process\ProcessBuilder
 	 */
 	public function __construct(array $arguments = [])
 	{
-		foreach ($arguments as $argument => $value)
+		foreach ($arguments as $key => $argument)
 		{
-			if ( ! is_integer($argument))
+			if (is_integer($key))
 			{
 				$this->add(sprintf("-%s", $argument));
+				
+				continue;
 			}
 			
-			$this->add($value);
+			$this->add(sprintf("-%s", $key));
+			$this->add($argument);
 		}
 		
-		$this->setArguments(array_filter($this->arguments, 'strlen'));
+		$this->setArguments(array_filter($this->arguments, function ($value) {
+			return is_scalar($value) ? strlen($value) : ! empty($value);
+		}));
 	}
 	
 	/**
@@ -301,9 +306,10 @@ class ProcessBuilder extends \Symfony\Component\Process\ProcessBuilder
 		}
 		
 		$options = $this->options;
-		
 		$arguments = array_merge($this->prefix, $this->arguments);
-		$script    = implode(' ', array_map([ProcessUtils::class, 'escapeArgument'], $arguments));
+		$script    = implode(' ', array_map(function ($key, $value) {
+			return ProcessUtils::escapeArgument($value);
+		}, array_keys($arguments), $arguments));
 		
 		if ($this->inheritEnv)
 		{
