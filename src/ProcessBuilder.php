@@ -92,7 +92,7 @@ class ProcessBuilder extends \Symfony\Component\Process\ProcessBuilder
 		}
 		
 		$this->setArguments(array_filter($this->arguments, function ($value) {
-			return is_scalar($value) ? strlen($value) : ! empty($value);
+			return is_scalar($value) ? strlen($value) > 1 : ! empty($value);
 		}));
 	}
 	
@@ -305,7 +305,7 @@ class ProcessBuilder extends \Symfony\Component\Process\ProcessBuilder
 			throw new LogicException('You must add() command arguments before calling getProcess().');
 		}
 		
-		$options = $this->options;
+		$options   = $this->options;
 		$arguments = array_merge($this->prefix, $this->arguments);
 		$script    = implode(' ', array_map(function ($key, $value) use ($arguments) {
 			if (is_array($value))
