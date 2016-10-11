@@ -307,7 +307,13 @@ class ProcessBuilder extends \Symfony\Component\Process\ProcessBuilder
 		
 		$options = $this->options;
 		$arguments = array_merge($this->prefix, $this->arguments);
-		$script    = implode(' ', array_map(function ($key, $value) {
+		$script    = implode(' ', array_map(function ($key, $value) use ($arguments) {
+			if (is_array($value))
+			{
+				return implode(' '.ProcessUtils::escapeArgument($arguments[$key - 1]).' ',
+					array_map([ProcessUtils::class, 'escapeArgument'], $value));
+			}
+			
 			return ProcessUtils::escapeArgument($value);
 		}, array_keys($arguments), $arguments));
 		
