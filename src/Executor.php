@@ -67,26 +67,6 @@ class Executor
 	}
 	
 	/**
-	 * Receive and parse raw data.
-	 *
-	 * @param MediaInterface $media
-	 *
-	 * @return array
-	 * <code>
-	 * $parsed = [
-	 *      'error'      => 'error string',
-	 *      'format'     => object(AudioFormat),
-	 *      'properties' => object(ArrayObject),
-	 *      'streams'    => object(Streams)
-	 * ];
-	 * </code>
-	 */
-	public function parse(MediaInterface $media)
-	{
-		return $this->parser->parse($media, $this);
-	}
-	
-	/**
 	 * Execute command line.
 	 *
 	 * @param array|ProcessBuilder $options

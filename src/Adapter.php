@@ -108,7 +108,8 @@ class Adapter implements AdapterInterface
 			'format'     => [],
 			'streams'    => [],
 			'properties' => []
-		], $this->executor->parse($media));
+		], $this->executor->getParser()
+			->parse($media, $this->executor));
 		
 		if ( ! empty($parsed['error']))
 		{
@@ -217,7 +218,7 @@ class Adapter implements AdapterInterface
 		
 		$options_ = new ProcessBuilder($options);
 		$options_->add($filePath);
-
+		
 		return [$this->executor->executeAsync($options_)];
 	}
 	
