@@ -54,7 +54,16 @@ class Executor
 		}
 		
 		$this->setParser(new FFProbe());
-		
+	}
+	
+	/**
+	 * Get parser instance.
+	 *
+	 * @return ParserInterface
+	 */
+	public function getParser()
+	{
+		return $this->parser;
 	}
 	
 	/**
