@@ -31,6 +31,15 @@ interface ParserInterface
 	 * @param Executor       $executor
 	 *
 	 * @return array
+	 *
+	 * <code>
+	 * $parsed = [
+	 *      'error'      => 'error string',
+	 *      'format'     => object(AudioFormat),
+	 *      'properties' => object(ArrayObject),
+	 *      'streams'    => object(Streams)
+	 * ];
+	 * </code>
 	 */
 	public function parse(MediaInterface $media, Executor $executor);
 	

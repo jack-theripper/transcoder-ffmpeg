@@ -38,16 +38,16 @@ class FFProbe implements ParserInterface
 	 * @param MediaInterface $media
 	 * @param Executor       $executor
 	 *
+	 * @return array
+	 *
 	 * <code>
 	 * $parsed = [
 	 *      'error'      => 'error string',
-	 *      'format'     => array,
+	 *      'format'     => object(AudioFormat),
 	 *      'properties' => object(ArrayObject),
 	 *      'streams'    => object(Streams)
 	 * ];
 	 * </code>
-	 *
-	 * @return array
 	 */
 	public function parse(MediaInterface $media, Executor $executor)
 	{
