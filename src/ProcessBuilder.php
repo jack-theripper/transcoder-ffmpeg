@@ -11,7 +11,7 @@
  * @license   http://opensource.org/licenses/MIT MIT
  * @copyright Copyright (c) 2016 Dmitry Arhitector <dmitry.arhitector@yandex.ru>
  */
-namespace Arhitector\Transcoder\Adapter\FFMpeg;
+namespace Arhitector\Transcoder\FFMpeg;
 
 use Arhitector\Transcoder\Process;
 use InvalidArgumentException;
@@ -21,7 +21,7 @@ use Symfony\Component\Process\ProcessUtils;
 /**
  * Class ProcessBuilder
  *
- * @package Arhitector\Transcoder\Adapter\FFMpeg
+ * @package Arhitector\Transcoder\FFMpeg
  */
 class ProcessBuilder extends \Symfony\Component\Process\ProcessBuilder
 {

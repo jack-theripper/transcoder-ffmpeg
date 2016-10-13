@@ -11,12 +11,12 @@
  * @license   http://opensource.org/licenses/MIT MIT
  * @copyright Copyright (c) 2016 Dmitry Arhitector <dmitry.arhitector@yandex.ru>
  */
-namespace Arhitector\Transcoder\Adapter\FFMpeg;
+namespace Arhitector\Transcoder\FFMpeg;
 
-use Arhitector\Transcoder\Adapter\FFMpeg\Parser\FFProbe;
-use Arhitector\Transcoder\Adapter\FFMpeg\Parser\ParserInterface;
 use Arhitector\Transcoder\Exception\ExecutableNotFoundException;
 use Arhitector\Transcoder\Exception\ExecutionFailureException;
+use Arhitector\Transcoder\FFMpeg\Parser\FFProbe;
+use Arhitector\Transcoder\FFMpeg\Parser\ParserInterface;
 use Arhitector\Transcoder\MediaInterface;
 use Arhitector\Transcoder\Process;
 use Symfony\Component\Process\ProcessBuilder as SymfonyProcessBuilder;
@@ -24,7 +24,7 @@ use Symfony\Component\Process\ProcessBuilder as SymfonyProcessBuilder;
 /**
  * Class Executor
  *
- * @package Arhitector\Transcoder\Adapter\FFMpeg
+ * @package Arhitector\Transcoder\FFMpeg
  */
 class Executor
 {

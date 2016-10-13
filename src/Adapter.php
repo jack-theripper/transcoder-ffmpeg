@@ -11,7 +11,7 @@
  * @license   http://opensource.org/licenses/MIT MIT
  * @copyright Copyright (c) 2016 Dmitry Arhitector <dmitry.arhitector@yandex.ru>
  */
-namespace Arhitector\Transcoder\Adapter\FFMpeg;
+namespace Arhitector\Transcoder\FFMpeg;
 
 use Arhitector\Transcoder\Adapter\AdapterInterface;
 use Arhitector\Transcoder\Adapter\AdapterTrait;
@@ -30,7 +30,7 @@ use Iterator;
 /**
  * Class Adapter
  *
- * @package Arhitector\Transcoder\Adapter\FFMpeg
+ * @package Arhitector\Transcoder\FFMpeg
  */
 class Adapter implements AdapterInterface
 {

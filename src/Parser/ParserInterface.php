@@ -11,15 +11,15 @@
  * @license   http://opensource.org/licenses/MIT MIT
  * @copyright Copyright (c) 2016 Dmitry Arhitector <dmitry.arhitector@yandex.ru>
  */
-namespace Arhitector\Transcoder\Adapter\FFMpeg\Parser;
+namespace Arhitector\Transcoder\FFMpeg\Parser;
 
-use Arhitector\Transcoder\Adapter\FFMpeg\Executor;
+use Arhitector\Transcoder\FFMpeg\Executor;
 use Arhitector\Transcoder\MediaInterface;
 
 /**
  * Interface ParserInterface
  *
- * @package Arhitector\Transcoder\Adapter\FFMpeg\Parser
+ * @package Arhitector\Transcoder\FFMpeg\Parser
  */
 interface ParserInterface
 {
