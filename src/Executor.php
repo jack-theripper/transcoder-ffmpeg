@@ -187,6 +187,11 @@ class Executor
 		
 		if ($command instanceof ProcessBuilder)
 		{
+			if ( ! $command->getPrefix())
+			{
+				$command->setPrefix($this->getOption('ffmpeg.path'));
+			}
+			
 			return $command->getProcess();
 		}
 		

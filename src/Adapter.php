@@ -217,8 +217,7 @@ class Adapter implements AdapterInterface
 		
 		$options_ = new ProcessBuilder($options);
 		$options_->add($filePath);
-		$options_->setPrefix($this->executor->getOption('ffmpeg.path'));
-		
+
 		return [$this->executor->executeAsync($options_)];
 	}
 	
