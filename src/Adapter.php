@@ -197,7 +197,7 @@ class Adapter implements AdapterInterface
 				'video_bitrate'          => 'b:v',
 				'video_pixel_format'     => 'pix_fmt',
 				'force_format'           => 'f',
-				//'metadata'               => 'metadata:g',
+				'metadata'               => 'metadata',
 				'ffmpeg_seek_start'      => 'ss',
 				'ffmpeg_seek_output'     => '-ss',
 				'ffmpeg_video_filters'   => (sizeof($options_['input']) > 1 ? '-filter_complex:v' : '-filter:v'),
@@ -213,6 +213,16 @@ class Adapter implements AdapterInterface
 				{
 					$options[$value] = '';
 				}
+			}
+		}
+		
+		if ( ! empty($options['metadata']))
+		{
+			$options['map_metadata'] = '-1';
+			
+			foreach ($options['metadata'] as $key => $value)
+			{
+				$options['metadata'][$key] = $key.' = '.$value;
 			}
 		}
 		
