@@ -156,8 +156,8 @@ class Adapter implements AdapterInterface
 	public function transcode(MediaInterface $media, FormatInterface $format, Filters $filters)
 	{
 		$options_ = array_merge([
-			'y',
-			'input'  => [$media->getFilePath(),],
+			'y'      => null,
+			'input'  => [$media->getFilePath()],
 			'strict' => -2
 		], []);
 		
@@ -173,22 +173,21 @@ class Adapter implements AdapterInterface
 		
 		$filePath = $options_['output'];
 		$options  = array_diff_key($options_, array_fill_keys(array_merge([
-			'ffmpeg_force_format',
 			'ffmpeg_video_filters',
-			'ffmpeg_audio_filters'
+			'ffmpeg_audio_filters',
+			'ffmpeg_seek_start',
+			'ffmpeg_seek_output'
 		], Process::getInternalOptions()), null));
 		
 		foreach (
 			[
 				'input'                  => 'i',
-				//'output'                 => '',
 				'audio_disable'          => 'an',
 				'audio_quality'          => 'qscale:a',
 				'audio_codec'            => 'codec:a',
 				'audio_bitrate'          => 'b:a',
 				'audio_sample_frequency' => 'ar',
 				'audio_channels'         => 'ac',
-				//'audio_volume',
 				'video_disable'          => 'vn',
 				'video_quality'          => 'qscale:v',
 				'video_codec'            => 'codec:v',
@@ -197,9 +196,10 @@ class Adapter implements AdapterInterface
 				'video_max_frames'       => 'vframes',
 				'video_bitrate'          => 'b:v',
 				'video_pixel_format'     => 'pix_fmt',
-				//'force_format',
-				//'metadata'               => 'metadata',
-				'ffmpeg_force_format'    => '-f',
+				'force_format'           => 'f',
+				//'metadata'               => 'metadata:g',
+				'ffmpeg_seek_start'      => 'ss',
+				'ffmpeg_seek_output'     => '-ss',
 				'ffmpeg_video_filters'   => (sizeof($options_['input']) > 1 ? '-filter_complex:v' : '-filter:v'),
 				'ffmpeg_audio_filters'   => (sizeof($options_['input']) > 1 ? '-filter_complex:a' : '-filter:a')
 			] as $option => $value
@@ -216,6 +216,7 @@ class Adapter implements AdapterInterface
 			}
 		}
 		
+		$options  = array_merge(array_fill_keys(['y', 'ss', 'i', 'strict'], null), $options);
 		$options_ = new ProcessBuilder($options);
 		$options_->add($filePath);
 		

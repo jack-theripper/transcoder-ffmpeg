@@ -87,7 +87,7 @@ class ProcessBuilder extends \Symfony\Component\Process\ProcessBuilder
 				continue;
 			}
 			
-			$this->add(sprintf("-%s", $key));
+			$this->add(sprintf("-%s", ltrim($key, ' -')));
 			$this->add($argument);
 		}
 		
