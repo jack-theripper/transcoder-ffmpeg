@@ -1,6 +1,7 @@
 {
 	"name": "arhitector/transcoder-ffmpeg",
-	"description": "FFMpeg adapter for arhitector/transcoder.",
+	"description": "The FFMpeg adapter for a arhitector/transcoder.",
+	"keywords": ["ffmpeg", "transcoder", "adapter", "conversion", "audio", "video", "transcoding"],
 	"license": "MIT",
 	"authors": [
 		{
@@ -14,6 +15,7 @@
 		}
 	},
 	"require": {
+		"php": ">=5.5",
 		"arhitector/transcoder": "~1.0"
 	}
 }
