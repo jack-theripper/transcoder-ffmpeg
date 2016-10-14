@@ -1,123 +1,126 @@
-# transcoder-ffmpeg
 
-Это FFMpeg-адаптер для arhitector\transcoder.
+## 1. Введение [![GitHub release](https://img.shields.io/github/release/jack-theripper/transcoder-ffmpeg.svg?maxAge=2592000?style=flat-square)](https://github.com/jack-theripper/transcoder-ffmpeg/releases) [![license](https://img.shields.io/github/license/mashape/apistatus.svg?maxAge=2592000?style=flat-square)](https://github.com/jack-theripper/transcoder-ffmpeg/blob/develop/LICENSE)
 
-# 1. Возможности адаптера
+FFMpeg-адаптер для [arhitector\transcoder](https://github.com/jack-theripper/transcoder). В своей работе использует 
+утилиты `ffmpeg` и `ffprobe` из стандартного пакета ffmpeg.
 
-Адаптер реализует для удобства свои обёртки: Audio, Video, Subtitle.
+## 1.1. Требования
 
-```php
-public Object:: __construct(string $filePath [, array $options = array()])
+- PHP 5.5 или новее
+- Установленный `FFMPEG` и `FFPROBE`
+
+## 1.2. Установка
+
+```bash
+$ composer require arhitector/transcoder-ffmpeg
 ```
 
-`$filePath` - путь до файла.
+## 2. Возможности адаптера
 
-`$options` - массив опций адаптера.
+Поддерживается большинство возможностей, предоставляемых `arhitector\transcoder` (чтение информации, запись метаданных, 
+транскодирование и прочее).
+
+Адаптер реализует для удобства свои обёртки над `Audio`, `Video`, `Subtitle`.
+
+```php
+public *::__construct(string $filePath [, array $options = array()])
+```
+
+Создаёт новое объектно ориентированное представление для конкретного медиа-файла.
+
+Список параметров
+
+- `$filePath` допускает значение типа string, путь до существующего аудио, видео или файла субтитров.
+
+- `$options` принимает значение `array`, массив опций адаптера.
+
+**Примеры**
+
+Пример \#1: Общий пример.
+
+```php
+// для аудио
+$audio = new Arhitector\Transcoder\FFMpeg\Audio('audio.mp3', [/* опции */]);
+
+// видео или изображение
+$video = new Arhitector\Transcoder\FFMpeg\Video('video.mp4', [/* опции */]);
+
+// и для субтитров
+$subtitle = new Arhitector\Transcoder\FFMpeg\Subtitle('subtitles.ass');
+```
+
+## 3. Опции адаптера
+
+- `ffmpeg.path` путь до бинарного файла `ffmpeg`, принимает тип `string`. Чаще всего, когда `FFMPEG` установлен, адаптер 
+может самостоятельно найти расположение бинарных файлов на основе вашего окружения.
+
+- `ffmpeg.threads` устанавливает значение опции `-threads`, принимает `integer`. По умолчанию `0` (ноль).
+
+- `ffprobe.path` путь до бинарного файла `ffprobe`, принимает тип `string`.
+
+- `timeout` время ожидания выполнения команд в секундах, тип `integer`, по умолчанию без ограничений.
+
+**Примеры**
+
+Пример \#1: Пример массива.
 
 ```php
 $options = [
-
-	// адаптер может сам найти бинарные файлы ffmpeg из вашего окружения,
-	// но вы можете самостоятельно указать путь к исполняемому файлу.
 	'ffmpeg.path' => 'path/bin/ffmpeg.exe',
-
-	// ffmpeg-опция '-threads'
 	'ffmpeg.threads' => 12,
-	
-	// ffprobe из стандартной поставки ffmpeg используется для исзвлечения медиа-информации.
-	// если не установлен ffprobe, то адаптер будет пытаться ипользовать утилиту ffmpeg.
 	'ffprobe.path' => 'usr/bin/ffprobe',
-	
-	// время ожидания выполнения команд, по умолчанию без ограничений.
 	'timeout' => 3600
-]
+];
 ```
 
-**Примеры:**
+Пример \#2: Использование опций.
 
 ```php
-$audio = new Arhitector\Transcoder\FFMpeg\Audio('file path');
-
-$video = new Arhitector\Transcoder\FFMpeg\Video('file path', ['...' => 'options']);
-
-$subtitle = new Arhitector\Transcoder\FFMpeg\Subtitle('file path.srt');
+$audio = new Arhitector\Transcoder\FFMpeg\Audio('audio.mp3', [
+	'timeout' => 300,
+	// 'ffmpeg.path' => 'ffmpeg',
+	// ...
+]);
 ```
 
-## 1.1. Получение информации о медиа-файлах.
+Пример \#3: Создание экземпляра адаптера.
 
 ```php
-$video->getWidth();
-
-$video->getHeight();
-
-// см. документацию по arhitector\transcoder
+$adapter = new Arhitector\Transcoder\FFMpeg\Adapter([
+	/* опции */
+]);
 ```
 
-## 1.2. Получение информаии о потоках, аудио дорожках, видео ряде и субтитрах.
+## 4. Фильтры
 
-```php
-$audio->getStreams(); // все потоки контейнера
+Список поддерживаемых фильтров:
 
-$subtitle->getStream(0); // первый поток, субтитры
+- ....
+- ....
 
-// см. документацию по arhitector\transcoder
-```
+## 5. Пресеты
 
-## 1.3. Извлечение потока из медиа-файла.
+.....
 
-Адаптер поддерживает разделение медиа-файла на потоки.
+## 6. Примеры
 
-```php
-$format = new Aac();
-$stream = $video->getStream(1);
+Эти примеры характерны только для `transcoder-ffmpeg` адаптера.
 
-$stream->save($format, 'file.aac');
+## 6.1. Разложить видеоряд на кадры
 
-// см. документацию по arhitector\transcoder
-```
-
-## 1.4. Добавление новых потоков в медиа-контейнер.
-
-Адаптер поддерживает добавление потоков в вывод.
-
-```php
-$streams = $audio->getStreams(); // все потоки в текущем файле
-$format = $audio->getFormat(); // использовать тот же формат
-
-// выбираем обложку для аудио-файла
-$picture = new Video('picture.jpg');
-
-// если существует обложка, ее нужно удалить
-foreach ($streams as $key => $stream)
-{
-	if ($stream instanceof VideoInterface)
-	{
-		unset($streams[$key]);
-	}
-}
-
-// добавить поток (изображение) в качестве обложки
-$audio->addStream($picture->getStream(0));
-
-$audio->save($format, 'new file path');
-```
-
-## 1.5. Кодирование потока своим кодеком.
-
-## 1.6. Разложить видеоряд на кадры
+Пример \#1: Извлечь 1 кадр.
 
 ```php
 $video->save(new Jpeg, 'picture.jpg');
+```
 
+Пример \#2: Сохранить множество кадров.
+
+```php
 $video->save(new Png, 'picture-%05d.jpg');
 ```
 
-1.6. Подерживается модель событий.
+## 7. Лицензия (License)
 
-1.7. Транскодирование в различные форматы.
-
-1.8. Поддержка фильтров и цепочек фильтров.
-
-1.9. Поддерживаются пресеты.
-
+[MIT License (MIT)](LICENSE)
 
