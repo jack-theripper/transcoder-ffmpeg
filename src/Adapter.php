@@ -159,7 +159,7 @@ class Adapter implements AdapterInterface
 			'y'      => null,
 			'input'  => [$media->getFilePath()],
 			'strict' => -2
-		], $this->getFormatOptions($format));
+		], $this->getFormatOptions($format), $this->getForceFormatOptions($format));
 		
 		foreach ($filters as $filter)
 		{
@@ -296,6 +296,18 @@ class Adapter implements AdapterInterface
 		}
 		
 		return $options;
+	}
+	
+	/**
+	 * Get force format options.
+	 *
+	 * @param $format
+	 *
+	 * @return array
+	 */
+	protected function getForceFormatOptions(FormatInterface $format)
+	{
+		return [];
 	}
 	
 }
