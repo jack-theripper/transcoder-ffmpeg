@@ -13,8 +13,11 @@
  */
 namespace Arhitector\Transcoder\FFMpeg\Parser;
 
+use Arhitector\Transcoder\FFMpeg\Executor;
+use Arhitector\Transcoder\MediaInterface;
+
 /**
- * Interface ParserInterface.
+ * Interface ParserInterface
  *
  * @package Arhitector\Transcoder\FFMpeg\Parser
  */
@@ -24,17 +27,20 @@ interface ParserInterface
 	/**
 	 * Receive and parse raw data.
 	 *
-	 * @param string $filePath
+	 * @param MediaInterface $media
+	 * @param Executor       $executor
 	 *
-	 * @return array    streams, format and etc.
-	 */
-	public function parse($filePath);
-	
-	/**
-	 * Get binary path.
+	 * @return array
 	 *
-	 * @return string
+	 * <code>
+	 * $parsed = [
+	 *      'error'      => 'error string',
+	 *      'format'     => object(AudioFormat),
+	 *      'properties' => object(ArrayObject),
+	 *      'streams'    => object(Streams)
+	 * ];
+	 * </code>
 	 */
-	public function getBinaryPath();
+	public function parse(MediaInterface $media, Executor $executor);
 	
 }

@@ -13,77 +13,38 @@
  */
 namespace Arhitector\Transcoder\FFMpeg;
 
-use Arhitector\Transcoder\AdapterInterface;
-use Arhitector\Transcoder\AdapterTrait;
-use Arhitector\Transcoder\AudioInterface;
+use Arhitector\Transcoder\Adapter\AdapterInterface;
+use Arhitector\Transcoder\Adapter\AdapterTrait;
+use Arhitector\Transcoder\Adapter\SharedPreferences;
+use Arhitector\Transcoder\Codec;
 use Arhitector\Transcoder\Exception\ExecutableNotFoundException;
-use Arhitector\Transcoder\Filter\FilterInterface;
-use Arhitector\Transcoder\Filter\HandlerFilterInterface;
+use Arhitector\Transcoder\Exception\TranscoderException;
+use Arhitector\Transcoder\Filter\Filters;
 use Arhitector\Transcoder\Format\FormatInterface;
-use Arhitector\Transcoder\SubtitleInterface;
-use Arhitector\Transcoder\Tools\Options;
-use Arhitector\Transcoder\Tools\TemporaryPath;
-use Arhitector\Transcoder\TranscoderInterface;
-use Arhitector\Transcoder\VideoInterface;
-use Symfony\Component\Process\Process;
+use Arhitector\Transcoder\MediaInterface;
+use Arhitector\Transcoder\Process;
+use Arhitector\Transcoder\Stream\Streams;
+use Arhitector\Transcoder\TranscodeInterface;
+use Iterator;
 
 /**
- * Class Adapter.
+ * Class Adapter
  *
  * @package Arhitector\Transcoder\FFMpeg
  */
 class Adapter implements AdapterInterface
 {
-	use AdapterTrait, CommandOptionsTrait;
+	use AdapterTrait;
 	
 	/**
-	 * @var array Global options.
-	 */
-	protected static $options = [];
-	
-	/**
-	 * Set one global option.
-	 *
-	 * @param string $index
-	 * @param mixed  $value
-	 *
-	 * @return bool
-	 */
-	public static function setOption($index, $value)
-	{
-		if ( ! is_scalar($index))
-		{
-			throw new \InvalidArgumentException('Index must be a scalar type.');
-		}
-		
-		static::$options[$index] = $value;
-		
-		return true;
-	}
-	
-	/**
-	 * Replace global options.
-	 *
-	 * @param array $options
-	 *
-	 * @return bool
-	 */
-	public static function setOptions(array $options)
-	{
-		static::$options = $options;
-		
-		return true;
-	}
-	
-	/**
-	 * @var CommandExecutor
+	 * @var Executor The Executor instance.
 	 */
 	protected $executor;
 	
 	/**
 	 * Adapter constructor.
 	 *
-	 * @param array $options
+	 * @param string[] $options
 	 */
 	public function __construct(array $options = [])
 	{
@@ -92,16 +53,18 @@ class Adapter implements AdapterInterface
 			'ffmpeg.threads' => null,
 			'ffprobe.path'   => 'ffprobe',
 			'timeout'        => 0
-		], self::$options, $options);
+		], SharedPreferences::get('ffmpeg.global', []), $options);
 		
-		foreach ([
-			'ffmpeg.path'  => $options['ffmpeg.path'],
-			'ffprobe.path' => $options['ffprobe.path']
-		] as $option => $binary)
+		foreach (
+			[
+				'ffmpeg.path'  => $options['ffmpeg.path'],
+				'ffprobe.path' => $options['ffprobe.path']
+			] as $option => $binary
+		)
 		{
 			try
 			{
-				$options[$option] = $this->hasFindExecutable($binary);
+				$options[$option] = $this->findExecutableFile($binary);
 			}
 			catch (ExecutableNotFoundException $exc)
 			{
@@ -114,172 +77,133 @@ class Adapter implements AdapterInterface
 			}
 		}
 		
-		$this->setExecutor(new CommandExecutor($options));
+		$this->setExecutor(new Executor($options));
 	}
 	
 	/**
-	 * Check filter.
+	 * Check whether the codec supports.
 	 *
-	 * @param FilterInterface $filter
+	 * @param string|Codec $codec
 	 *
 	 * @return bool
 	 */
-	public function hasSupportedFilter(FilterInterface $filter)
+	public function hasSupportedCodec($codec)
 	{
-		if ( ! $filter instanceof HandlerFilterInterface)
-		{
-			$observer = get_class($filter);
-			$observer = __NAMESPACE__.'\\Filter\\'.substr($observer, strrpos($observer, '\\') + 1);
-			
-			if ( ! class_exists($observer))
-			{
-				return false;
-			}
-			
-			$filter->attach(new $observer($filter));
-		}
-		
-		return true;
-	}
-	
-	/**
-	 * Get supported encoders.
-	 *
-	 * @param int  $mask
-	 * @param bool $strict
-	 *
-	 * @return array
-	 */
-	public function getSupportedCodecs($mask, $strict = false)
-	{
-		$results = [];
-		
-		if ( ! ($codecs = CacheStorage::get('supported.codecs', false)))
-		{
-			$codecs = CacheStorage::set('supported.codecs', $this->getAvailableCodecs());
-		}
-		
-		foreach ((array) $codecs as $codec => $value)
-		{
-			if ($strict)
-			{
-				if ($mask <= ($value & $mask))
-				{
-					$results[] = $codec;
-				}
-			}
-			else if ($value & $mask)
-			{
-				$results[] = $codec;
-			}
-		}
-		
-		return $results;
-	}
-	
-	/**
-	 * Supported encoder etc.
-	 *
-	 * @param string $codecString
-	 *
-	 * @return int  bit mask or FALSE
-	 */
-	public function hasSupportedCodec($codecString)
-	{
-		return true;
+		// TODO: Implement hasSupportedCodec() method.
 	}
 	
 	/**
 	 * The adapter initialize.
 	 *
-	 * @param TranscoderInterface $media
+	 * @param TranscodeInterface $media
 	 *
 	 * @return void
 	 */
-	public function initialize(TranscoderInterface $media)
+	public function initialize(TranscodeInterface $media)
 	{
-		$parsed = $this->executor->parse($media->getFilePath());
+		/**
+		 * @var MediaInterface $media
+		 */
+		$parsed = array_merge([
+			'format'     => [],
+			'streams'    => [],
+			'properties' => []
+		], $this->executor->getParser()
+			->parse($media, $this->executor));
 		
-		if ( ! $parsed->format)
+		if ( ! empty($parsed['error']))
 		{
-			if ($media instanceof AudioInterface)
-			{
-				$parsed->format = new \Arhitector\Transcoder\Format\SimpleAudio();
-			}
-			else if ($media instanceof VideoInterface)
-			{
-				$parsed->format = new \Arhitector\Transcoder\Format\SimpleVideo();
-			}
-			else if ($media instanceof SubtitleInterface)
-			{
-				$parsed->format = new \Arhitector\Transcoder\Format\SimpleSubtitle();
-			}
+			throw new TranscoderException($parsed['error']);
 		}
 		
-		$this->setFormat($parsed->format);
+		$format     = $this->findFormatClass($media);
+		$format     = new $format();
+		$reflection = new \ReflectionClass($format);
 		
-		foreach ($parsed->properties as $property => $value)
+		$method = $reflection->getMethod('setBitRate');
+		$method->setAccessible(true);
+		$method->invoke($format, $parsed['format']['bit_rate']);
+		
+		$method = $reflection->getMethod('setDuration');
+		$method->setAccessible(true);
+		$method->invoke($format, $parsed['format']['duration']);
+		
+		$property = $reflection->getProperty('name');
+		$property->setAccessible(true);
+		$property->setValue($format, $parsed['format']['name']);
+		
+		$this->setFormat($format);
+		
+		foreach ($parsed['properties'] as $property => $value)
 		{
 			$media[$property] = $value;
 		}
 		
-		foreach ((array) $parsed->streams as $stream)
-		{
-			$stream->setAdapter($this);
-		}
-		
-		$this->setStreams(\SplFixedArray::fromArray($parsed->streams));
+		$this->setStreams(new Streams((array) $parsed['streams']));
 	}
 	
 	/**
-	 * Transcoding.
+	 * Constructs and returns the iterator with instances of 'Process'.
+	 * If the value $media instance of 'TranscoderInterface' then it is full media or instance of 'StreamInterface'
+	 * then it is stream.
 	 *
-	 * @param TranscoderInterface $media
-	 * @param FormatInterface     $format
-	 * @param \SplPriorityQueue   $filters
+	 * @param MediaInterface  $media   it may be a stream or media wrapper.
+	 * @param FormatInterface $format  new format.
+	 * @param Filters         $filters list of filters.
 	 *
-	 * @return \Iterator|Process[]
+	 * @return Iterator|Process[]  returns the instances of 'Process'.
 	 */
-	public function transcode(TranscoderInterface $media, FormatInterface $format, \SplPriorityQueue $filters)
+	public function transcode(MediaInterface $media, FormatInterface $format, Filters $filters)
 	{
-		$options_ = new Options(['y', 'i' => [$media->getFilePath()], 'strict' => '-2']);
-		$options_->merge($this->getFormatOptions($format));
-		$options_->merge($this->getForceFormatOptions($format));
+		$options_ = array_merge([
+			'y',
+			'input'  => [$media->getFilePath(),],
+			'strict' => -2
+		], []);
 		
 		foreach ($filters as $filter)
 		{
-			$options_->replace($filter->apply($media, $format));
+			$options_ = array_replace_recursive($options_, $filter->apply($media, $format));
 		}
 		
 		if ( ! isset($options_['output']))
 		{
-			throw new \RuntimeException('Output file path not found.');
+			throw new TranscoderException('Output file path not found.');
 		}
 		
 		$filePath = $options_['output'];
-		$options_->replace($this->getStreamOptions($this->getStreams(), $options_));
-		$options = $options_->withoutTranscoderOptions();
+		$options  = array_diff_key($options_, array_fill_keys(array_merge([
+			'ffmpeg_force_format',
+			'ffmpeg_video_filters',
+			'ffmpeg_audio_filters'
+		], Process::getInternalOptions()), null));
 		
-		foreach ([
-			'disable_audio'          => '-an',
-			'audio_quality'          => '-qscale:a',
-			'audio_codec'            => '-codec:a',
-			'audio_bitrate'          => '-b:a',
-			'audio_sample_frequency' => '-ar',
-			'audio_channels'         => '-ac',
-			'disable_video'          => '-vn',
-			'video_quality'          => '-qscale:v',
-			'video_codec'            => '-codec:v',
-			'video_aspect_ratio'     => '-aspect',
-			'video_frame_rate'       => '-r',
-			'video_max_frames'       => '-vframes',
-			'video_bitrate'          => '-b:v',
-			'video_pixel_format'     => '-pix_fmt',
-			'metadata'               => '-metadata',
-			'ffmpeg_force_format'    => '-f',
-			'ffmpeg_video_filters'   => (sizeof($options_['i']) > 1 ? '-filter_complex:v' : '-filter:v'),
-			'ffmpeg_audio_filters'   => (sizeof($options_['i']) > 1 ? '-filter_complex:a' : '-filter:a')
-		] as $option => $value)
+		foreach (
+			[
+				'input'                  => 'i',
+				//'output'                 => '',
+				'audio_disable'          => 'an',
+				'audio_quality'          => 'qscale:a',
+				'audio_codec'            => 'codec:a',
+				'audio_bitrate'          => 'b:a',
+				'audio_sample_frequency' => 'ar',
+				'audio_channels'         => 'ac',
+				//'audio_volume',
+				'video_disable'          => 'vn',
+				'video_quality'          => 'qscale:v',
+				'video_codec'            => 'codec:v',
+				'video_aspect_ratio'     => 'aspect',
+				'video_frame_rate'       => 'r',
+				'video_max_frames'       => 'vframes',
+				'video_bitrate'          => 'b:v',
+				'video_pixel_format'     => 'pix_fmt',
+				//'force_format',
+				//'metadata'               => 'metadata',
+				'ffmpeg_force_format'    => '-f',
+				'ffmpeg_video_filters'   => (sizeof($options_['input']) > 1 ? '-filter_complex:v' : '-filter:v'),
+				'ffmpeg_audio_filters'   => (sizeof($options_['input']) > 1 ? '-filter_complex:a' : '-filter:a')
+			] as $option => $value
+		)
 		{
 			if (isset($options_[$option]))
 			{
@@ -292,164 +216,20 @@ class Adapter implements AdapterInterface
 			}
 		}
 		
-		unset($options['ffmpeg_force_format'], $options['ffmpeg_video_filters'], $options['ffmpeg_audio_filters']);
+		$options_ = new ProcessBuilder($options);
+		$options_->add($filePath);
 		
-		if ( ! empty($options['metadata']))
-		{
-			$options['map_metadata'] = '-1';
-		}
-		
-		$options_ = [];
-		
-		foreach ($options as $option => $value)
-		{
-			$options_[] = '-'.$option;
-			
-			if (stripos($option, 'filter') !== false)
-			{
-				$options_[] = implode(', ', (array) $value);
-			}
-			else if (is_array($value))
-			{
-				array_pop($options_);
-				
-				foreach ($value as $key => $val)
-				{
-					$options_[] = '-'.$option;
-					$options_[] = is_integer($key) ? $val : "{$key}={$val}";
-				}
-				
-			}
-			else if ($value)
-			{
-				$options_[] = $value;
-			}
-		}
-		
-		if ($format->getPasses() > 1)
-		{
-			$filesystem = new TemporaryPath('transcoder');
-			$options_[] = '-passlogfile';
-			$options_[] = $filesystem->getPath().'ffmpeg.passlog';
-		}
-		
-		$totalDuration = $this->getFormat()
-			->getDuration();
-		
-		if (isset($options['t']))
-		{
-			$totalDuration = $options['t'];
-			
-			if ( ! is_numeric($totalDuration))
-			{
-				$matches = array_reverse(explode(":", $totalDuration));
-				$totalDuration = (float) array_shift($matches);
-				
-				foreach ($matches as $key => $value)
-				{
-					$totalDuration += (int) $value * 60 * ($key + 1);
-				}
-			}
-		}
-		
-		for ($pass = 1; $pass <= $format->getPasses(); ++$pass)
-		{
-			$options = $options_;
-			
-			if ($format->getPasses() > 1)
-			{
-				$options[] = '-pass';
-				$options[] = $pass;
-			}
-			
-			$options[] = $filePath;
-			$process = $this->executor->executeAsync($options);
-			$process->wait(function ($type, $data) use ($process, $format, $totalDuration, $pass) {
-				if (preg_match('/size=(.*?) time=(.*?) /', $data, $matches))
-				{
-					$matches[2] = array_reverse(explode(":", $matches[2]));
-					$duration = (float) array_shift($matches[2]);
-					
-					foreach ($matches[2] as $key => $value)
-					{
-						$duration += (int) $value * 60 * ($key + 1);
-					}
-					
-					$format->emit('progress', $process, $totalDuration, $duration, (int) trim($matches[1]),
-						$format->getPasses(), $pass);
-				}
-			});
-			
-			yield $process;
-		}
-	}
-	
-	/**
-	 * Supported codecs.
-	 *
-	 * @return int[]
-	 */
-	protected function getAvailableCodecs()
-	{
-		$codecs = [];
-		$bit = [
-			'.' => 0,
-			'A' => 1,
-			'V' => 2,
-			'S' => 4,
-			'E' => 8,
-			'D' => 16
-		];
-		
-		foreach ([
-			'encoders' => $this->executor->executeAsync(['-encoders']),
-			'decoders' => $this->executor->executeAsync(['-decoders']),
-			'codecs'   => $this->executor->executeAsync(['-codecs'])
-		] as $type => $process)
-		{
-			while ($process->getStatus() !== Process::STATUS_TERMINATED)
-			{
-				usleep(200000);
-			}
-			
-			if (preg_match_all('/\s([VASFXBDEIL\.]{6})\s(\S{3,20})\s/', $process->getOutput(), $matches))
-			{
-				if ($type == 'encoders')
-				{
-					foreach ($matches[2] as $key => $value)
-					{
-						$codecs[$value] = $bit[$matches[1][$key]{0}] | $bit['E'];
-					}
-				}
-				else if ($type == 'decoders')
-				{
-					foreach ($matches[2] as $key => $value)
-					{
-						$codecs[$value] = $bit[$matches[1][$key]{0}] | $bit['D'];
-					}
-				}
-				else // codecs, encoders + decoders
-				{
-					foreach ($matches[2] as $key => $value)
-					{
-						$key = $matches[1][$key];
-						$codecs[$value] = $bit[$key{2}] | $bit[$key{0}] | $bit[$key{1}];
-					}
-				}
-			}
-		}
-		
-		return $codecs;
+		return [$this->executor->executeAsync($options_)];
 	}
 	
 	/**
 	 * Set Executor instance.
 	 *
-	 * @param CommandExecutor $instance
+	 * @param Executor $instance
 	 *
 	 * @return Adapter
 	 */
-	protected function setExecutor(CommandExecutor $instance)
+	protected function setExecutor(Executor $instance)
 	{
 		$this->executor = $instance;
 		
