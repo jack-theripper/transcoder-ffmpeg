@@ -159,13 +159,13 @@ class Adapter implements AdapterInterface
 			'y'      => null,
 			'input'  => [$media->getFilePath()],
 			'strict' => -2
-		], []);
+		], $this->getFormatOptions($format));
 		
 		foreach ($filters as $filter)
 		{
 			$options_ = array_replace_recursive($options_, $filter->apply($media, $format));
 		}
-		
+
 		if ( ! isset($options_['output']))
 		{
 			throw new TranscoderException('Output file path not found.');
@@ -235,6 +235,67 @@ class Adapter implements AdapterInterface
 		$this->executor = $instance;
 		
 		return $this;
+	}
+	
+	/**
+	 * Get options for format.
+	 *
+	 * @param FormatInterface $format
+	 *
+	 * @return array
+	 */
+	protected function getFormatOptions(FormatInterface $format)
+	{
+		$options = [];
+		
+		if ($format instanceof \Arhitector\Transcoder\Format\AudioFormatInterface)
+		{
+			$options['audio_codec'] = $format->getAudioCodecString() ?: 'copy';
+			$options['video_codec'] = 'copy';
+			
+			if ($format->getAudioKiloBitRate() > 0)
+			{
+				$options['audio_bitrate'] = $format->getAudioKiloBitRate().'k';
+			}
+			
+			if ($format->getAudioFrequency() > 0)
+			{
+				$options['audio_sample_frequency'] = $format->getAudioFrequency();
+			}
+			
+			if ($format->getAudioChannels() > 0)
+			{
+				$options['audio_channels'] = $format->getAudioChannels();
+			}
+		}
+		
+		if ($format instanceof \Arhitector\Transcoder\Format\VideoFormatInterface)
+		{
+			$options['video_codec'] = $format->getVideoCodecString() ?: 'copy';
+			
+			if ($format->getVideoFrameRate() > 0)
+			{
+				$options['video_frame_rate'] = $format->getVideoFrameRate();
+			}
+			
+			if ($format->getVideoKiloBitRate() > 0)
+			{
+				$options['video_bitrate'] = $format->getVideoKiloBitRate().'k';
+			}
+			
+			$options['refs']         = 6;
+			$options['coder']        = 1;
+			$options['sc_threshold'] = 40;
+			$options['flags']        = '+loop';
+			$options['me_range']     = 16;
+			$options['subq']         = 7;
+			$options['i_qfactor']    = 0.71;
+			$options['qcomp']        = 0.6;
+			$options['qdiff']        = 4;
+			$options['trellis']      = 1;
+		}
+		
+		return $options;
 	}
 	
 }
