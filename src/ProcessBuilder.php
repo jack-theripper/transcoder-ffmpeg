@@ -326,9 +326,7 @@ class ProcessBuilder extends \Symfony\Component\Process\ProcessBuilder
 			
 			return ProcessUtils::escapeArgument($value);
 		}, array_keys($arguments), $arguments));
-		
-		echo '<pre>'.$script.'</pre>';
-		
+
 		if ($this->inheritEnv)
 		{
 			$env = array_replace($_ENV, $_SERVER, $this->env);
