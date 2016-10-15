@@ -118,9 +118,9 @@ class FFProbe implements ParserInterface
 		$output = $executor->execute((new ProcessBuilder([
 			'loglevel'     => 'quiet',
 			'print_format' => 'json',
-			'show_format'  => '',
-			'show_streams' => '',
-			'show_error'   => '',
+			'show_format'  => null,
+			'show_streams' => null,
+			'show_error'   => null,
 			'i'            => $media->getFilePath()
 		]))
 			->setPrefix($executor->getOption('ffprobe.path'))
