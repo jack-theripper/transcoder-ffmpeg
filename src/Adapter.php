@@ -16,6 +16,7 @@ namespace Arhitector\Transcoder\FFMpeg;
 use Arhitector\Transcoder\Adapter\AdapterInterface;
 use Arhitector\Transcoder\Adapter\AdapterTrait;
 use Arhitector\Transcoder\Adapter\SharedPreferences;
+use Arhitector\Transcoder\Adapter\TemporaryPath;
 use Arhitector\Transcoder\Codec;
 use Arhitector\Transcoder\Exception\ExecutableNotFoundException;
 use Arhitector\Transcoder\Exception\TranscoderException;
@@ -165,7 +166,7 @@ class Adapter implements AdapterInterface
 		{
 			$options_ = array_replace_recursive($options_, $filter->apply($media, $format));
 		}
-
+		
 		if ( ! isset($options_['output']))
 		{
 			throw new TranscoderException('Output file path not found.');
@@ -226,11 +227,30 @@ class Adapter implements AdapterInterface
 			}
 		}
 		
-		$options  = array_merge(array_fill_keys(['y', 'ss', 'i', 'strict'], null), $options);
+		$options = array_intersect_key(array_merge(array_fill_keys(['y', 'ss', 'i'], null), $options), $options);
 		$options_ = new ProcessBuilder($options);
-		$options_->add($filePath);
 		
-		return [$this->executor->executeAsync($options_)];
+		if ($format->getPasses() > 1)
+		{
+			$filesystem = new TemporaryPath('transcoder');
+			$options_->add('-passlogfile');
+			$options_->add($filesystem->getPath().'ffmpeg.passlog');
+		}
+		
+		for ($pass = 1; $pass <= $format->getPasses(); ++$pass)
+		{
+			$options = clone $options_;
+			
+			if ($format->getPasses() > 1)
+			{
+				$options->add('-pass');
+				$options->add($pass);
+			}
+			
+			$options->add($filePath);
+			
+			yield $this->executor->executeAsync($options);
+		}
 	}
 	
 	/**
