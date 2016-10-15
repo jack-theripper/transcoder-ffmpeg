@@ -165,7 +165,7 @@ class Adapter implements AdapterInterface
 		{
 			$options_ = array_replace_recursive($options_, $filter->apply($media, $format));
 		}
-
+		
 		if ( ! isset($options_['output']))
 		{
 			throw new TranscoderException('Output file path not found.');
@@ -226,7 +226,7 @@ class Adapter implements AdapterInterface
 			}
 		}
 		
-		$options  = array_merge(array_fill_keys(['y', 'ss', 'i', 'strict'], null), $options);
+		$options = array_intersect_key(array_merge(array_fill_keys(['y', 'ss', 'i'], null), $options), $options);
 		$options_ = new ProcessBuilder($options);
 		$options_->add($filePath);
 		
