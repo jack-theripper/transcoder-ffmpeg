@@ -49,7 +49,7 @@ class ProcessBuilder extends \Symfony\Component\Process\ProcessBuilder
 	/**
 	 * @var int
 	 */
-	protected $timeout = 60;
+	protected $timeout = 0;
 	
 	/**
 	 * @var array
