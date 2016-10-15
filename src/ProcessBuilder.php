@@ -87,12 +87,12 @@ class ProcessBuilder extends \Symfony\Component\Process\ProcessBuilder
 				continue;
 			}
 			
-			$this->add(sprintf("-%s", ltrim($key, ' -')));
+			$this->add(sprintf("-%s", ltrim($key, '-')));
 			$this->add($argument);
 		}
 		
 		$this->setArguments(array_filter($this->arguments, function ($value) {
-			return is_scalar($value) ? strlen($value) > 1 : ! empty($value);
+			return is_scalar($value) ? strlen($value) : ! empty($value);
 		}));
 	}
 	
@@ -326,6 +326,8 @@ class ProcessBuilder extends \Symfony\Component\Process\ProcessBuilder
 			
 			return ProcessUtils::escapeArgument($value);
 		}, array_keys($arguments), $arguments));
+		
+		echo '<pre>'.$script.'</pre>';
 		
 		if ($this->inheritEnv)
 		{
